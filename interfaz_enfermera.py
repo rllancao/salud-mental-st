@@ -129,7 +129,7 @@ def crear_interfaz_enfermera(_supabase: Client):
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4,
                                         marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
             fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=250)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No hay datos para mostrar en el gráfico.")
 
@@ -160,7 +160,7 @@ def crear_interfaz_enfermera(_supabase: Client):
 
     if filtered_list:
         df = pd.DataFrame(filtered_list)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
     else:
         st.info("No hay pacientes que coincidan con el filtro seleccionado.")
 

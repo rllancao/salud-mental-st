@@ -9,8 +9,6 @@ import interfaz_enfermera
 def init_supabase():
     url = st.secrets["supabase"]["url"]
     key = st.secrets["supabase"]["key"]
-    # --- CAMBIO CLAVE: Usar el objeto ClientOptions ---
-    # Esto se alinea con las versiones recientes de la librería supabase-py.
     return create_client(
         url,
         key,
@@ -32,9 +30,8 @@ def load_user_profile(user):
             st.session_state.user_sede = profile.get("sede")
             return True
         else:
-            # Si el usuario existe en Supabase Auth pero no tiene perfil
             st.session_state.user = user
-            st.session_state.user_role = "paciente" # Asignar rol por defecto
+            st.session_state.user_role = "paciente"
             st.session_state.user_sede = None
             return True
     except Exception as e:
@@ -54,24 +51,33 @@ def sign_in(email, password):
 
 def sign_out():
     supabase.auth.sign_out()
-    # Limpiar todo el estado de la sesión para un cierre limpio
     for key in st.session_state.keys():
         del st.session_state[key]
     st.rerun()
 
 # --- Lógica principal de la aplicación ---
-st.set_page_config(page_title="Gestión de Salud Mental", layout="wide")
+st.set_page_config(
+    page_title="Gestión de Salud Mental",
+    layout="wide",
+    # --- CAMBIO CLAVE: La barra lateral empieza oculta ---
+    initial_sidebar_state="collapsed" 
+)
+
+# --- CAMBIO CLAVE: Mostrar el logo en el área principal y centrado ---
+col1, col2, col3 = st.columns([2, 3, 2]) # Columnas para centrar la imagen
+with col2:
+    st.image("workmed_logo.png", width='stretch')
+
+# --- Contenido de la barra lateral ---
 st.sidebar.title("Menú Principal")
 
-# --- CAMBIO CLAVE: Intentar restaurar la sesión al inicio ---
-# Esto se ejecuta cada vez que la página se carga o refresca.
+# --- Intentar restaurar la sesión al inicio ---
 if 'user' not in st.session_state:
     session = supabase.auth.get_session()
     if session and session.user:
         load_user_profile(session.user)
     else:
         st.session_state.user = None
-
 
 # Lógica de visualización basada en si el usuario está en la sesión
 if st.session_state.get('user') is None:
@@ -84,11 +90,9 @@ if st.session_state.get('user') is None:
         sign_in(email, password)
     
     st.sidebar.markdown("---")
-    st.sidebar.info("Solo tiene acceso a la Ficha de Ingreso. Inicie sesión para ver las otras secciones.")
     ficha_salud_mental.crear_interfaz_paciente(supabase)
 
 else:
-    # Si el usuario está autenticado, mostrar la interfaz correspondiente
     st.sidebar.write(f"Conectado como: {st.session_state.user.email}")
     st.sidebar.write(f"Rol: {st.session_state.user_role}")
     if st.session_state.get("user_sede"):
