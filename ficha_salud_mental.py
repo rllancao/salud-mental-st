@@ -1,0 +1,301 @@
+import streamlit as st
+from fpdf import FPDF
+from datetime import datetime
+from supabase import Client
+import pymysql
+import pandas as pd
+import json
+
+# --- Clase PDF (sin cambios) ---
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 14)
+        self.cell(0, 10, 'Ficha de Ingreso Salud Mental', 0, 1, 'C')
+        self.ln(10)
+
+    def chapter_title(self, title):
+        self.set_font('Arial', 'B', 12)
+        self.cell(0, 10, title, 0, 1, 'L')
+        self.ln(4)
+
+    def create_table_section(self, data):
+        self.set_font('Arial', '', 10)
+        for key, value in data.items():
+            self.set_x(10)
+            self.cell(0, 7, f"- {key}: {value}", 0, 1)
+        self.ln(5)
+
+# --- Función para Normalizar Teléfono (MODIFICADA para ser más estricta) ---
+def normalize_phone_number(phone_str):
+    """
+    Normaliza un número de teléfono a formato 9XXXXXXXX.
+    Si el formato no es reconocible (ej. muy corto), retorna vacío.
+    """
+    if not phone_str or not isinstance(phone_str, str):
+        return ""
+    
+    digits = "".join(filter(str.isdigit, phone_str))
+    
+    # Caso 1: El número tiene código de país (+569... o 569...)
+    if len(digits) > 9:
+        potential_number = digits[-9:]
+        if potential_number.startswith('9'):
+            return potential_number
+            
+    # Caso 2: El número ya tiene el formato correcto
+    elif len(digits) == 9 and digits.startswith('9'):
+        return digits
+        
+    # Caso 3: Cualquier otro caso (ej. "0294564") es inválido
+    return ""
+
+
+# --- Conexión a Base de Datos MySQL (sin cambios) ---
+@st.cache_resource
+def connect_to_mysql():
+    try:
+        connection = pymysql.connect(
+            host=st.secrets["mysql"]["host"],
+            user=st.secrets["mysql"]["user"],
+            password=st.secrets["mysql"]["password"],
+            database=st.secrets["mysql"]["database"],
+            port=st.secrets["mysql"]["port"]
+        )
+        return connection
+    except Exception as e:
+        st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
+        return None
+
+# --- Función para buscar datos del paciente (sin cambios respecto a la anterior) ---
+@st.cache_data(ttl=600)
+def fetch_patient_data(rut_paciente):
+    connection = connect_to_mysql()
+    if not connection:
+        return None
+
+    query = """
+    SELECT datosPersona, nombre_lab
+    FROM `agendaview`
+    WHERE fecha <= CURDATE() AND fecha > DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+    """
+    try:
+        df = pd.read_sql(query, connection)
+        
+        for index, row in df.iterrows():
+            datos_persona = json.loads(row['datosPersona'])
+            if datos_persona.get('rut') == rut_paciente:
+                
+                warnings = []
+                
+                # Limpieza y validación de la fecha de nacimiento
+                fecha_nac_str = datos_persona.get('fecha_nac')
+                edad = None
+                if fecha_nac_str:
+                    cleaned_date_str = fecha_nac_str.replace(" ", "").strip()
+                    if cleaned_date_str and cleaned_date_str != '0000-00-00':
+                        try:
+                            fecha_nac = datetime.strptime(cleaned_date_str, '%Y-%m-%d')
+                            edad = datetime.now().year - fecha_nac.year - ((datetime.now().month, datetime.now().day) < (fecha_nac.month, fecha_nac.day))
+                        except ValueError:
+                            warnings.append("Fecha de Nacimiento (formato inválido)")
+                
+                # Limpieza de espacios en otros campos de texto
+                nombre = datos_persona.get('nombre', '').strip()
+                nombre2 = datos_persona.get('nombre2', '').strip()
+                apellidoP = datos_persona.get('apellidoP', '').strip()
+                apellidoM = datos_persona.get('apellidoM', '').strip()
+                nombre_completo = " ".join(filter(None, [nombre, nombre2, apellidoP, apellidoM]))
+                
+                # Validación de Teléfono
+                telefono_normalizado = normalize_phone_number(datos_persona.get('telefono', '').strip())
+                if not telefono_normalizado:
+                    warnings.append("Teléfono (formato inválido)")
+
+                # Validación de Correo
+                correo = datos_persona.get('correo', '').strip()
+                if correo and '@' not in correo:
+                    warnings.append("Correo Electrónico (formato inválido)")
+                    correo = "" # Limpiar si es inválido
+
+                empresa = datos_persona.get('nombre_contra', '').strip()
+                cargo = datos_persona.get('cargo', '').strip()
+                sucursal = row.get('nombre_lab', '').strip()
+
+                patient_data = {
+                    "nombre_completo": nombre_completo, "rut": datos_persona.get('rut'),
+                    "edad": edad, "telefono": telefono_normalizado,
+                    "correo": correo, "empresa": empresa,
+                    "cargo": cargo, "sucursal_workmed": sucursal
+                }
+                
+                return {"data": patient_data, "warnings": warnings}
+        return "not_found"
+    except Exception as e:
+        st.error(f"Error al buscar los datos del paciente: {e}")
+        return None
+
+# --- Funciones de PDF y Supabase (sin cambios) ---
+def generar_pdf(form_data):
+    pdf_data = form_data.copy()
+    
+    fecha_vencimiento = pdf_data.get("fecha_vencimiento_licencia")
+    if fecha_vencimiento:
+        pdf_data["fecha_vencimiento_licencia"] = fecha_vencimiento.strftime("%d-%m-%Y")
+    else:
+        pdf_data["fecha_vencimiento_licencia"] = "N/A"
+
+    pdf = PDF()
+    pdf.add_page()
+    pdf.chapter_title("Datos Personales")
+    pdf.create_table_section({
+        "Nombre Completo": pdf_data.get("nombre_completo"), "RUT": pdf_data.get("rut"),
+        "Edad": pdf_data.get("edad"), "Teléfono": pdf_data.get("telefono"),
+        "Correo": pdf_data.get("correo"), "Empresa": pdf_data.get("empresa"),
+        "Sucursal Workmed": pdf_data.get("sucursal_workmed"), "Cargo": pdf_data.get("cargo"),
+    })
+
+    pdf.chapter_title("Antecedentes Académicos y Laborales")
+    pdf.create_table_section({
+        "Tipo de Licencia": pdf_data.get("tipo_licencia"),
+        "Fecha de Vencimiento de Licencia": pdf_data.get("fecha_vencimiento_licencia"),
+        "Experiencia Laboral": pdf_data.get("experiencia"), "Educación": pdf_data.get("educacion"),
+    })
+
+    pdf.chapter_title("Antecedentes Personales y Salud")
+    pdf.create_table_section({
+        "Red de Apoyo": pdf_data.get("red_apoyo"), "Horas de Sueño": pdf_data.get("horas_sueño"),
+        "Tratamiento Psicológico/Psiquiátrico": pdf_data.get("tratamiento"),
+        "Fortaleza": pdf_data.get("fortaleza"), "Debilidad": pdf_data.get("debilidad"),
+    })
+
+    pdf.chapter_title("Antecedentes de Seguridad y Prevención")
+    pdf.create_table_section({
+        "Elementos de Protección Personal": pdf_data.get("elementos_proteccion"),
+        "Estrategia de Prevención de Accidentes": pdf_data.get("estrategia_prev_accidente"),
+        "Riesgos en el Trabajo": pdf_data.get("riesgos_trabajo"),
+        "Accidentes Laborales Anteriores": pdf_data.get("accidentes_laborales"),
+    })
+    
+    return pdf.output(dest='S').encode('latin1')
+
+def guardar_pdf_en_supabase(supabase: Client, pdf_bytes, rut, form_data):
+    try:
+        fecha_actual_str = datetime.now().strftime('%Y-%m-%d')
+        nombre_archivo = f"{rut}_{fecha_actual_str}.pdf"
+        file_path = f"fichas_ingreso_SM/{nombre_archivo}"
+        
+        data_to_insert = form_data.copy()
+        fecha_vencimiento = data_to_insert.get("fecha_vencimiento_licencia")
+        if fecha_vencimiento:
+            data_to_insert['fecha_vencimiento_licencia'] = fecha_vencimiento.strftime('%Y-%m-%d')
+        
+        supabase.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes, path=file_path, file_options={"content-type": "application/pdf"})
+        supabase.from_('ficha_ingreso').insert(data_to_insert).execute()
+        supabase.from_('registros_fichas_sm').insert({
+            'rut': rut, 'pdf_path': file_path,
+            'nombre_completo': data_to_insert['nombre_completo'],
+        }).execute()
+        st.success(f"¡Ficha de Ingreso guardada con éxito!")
+        return True
+    except Exception as e:
+        st.error(f"Error al guardar la ficha en Supabase: {e}")
+        return False
+
+# --- Interfaz de usuario (paciente) con autocompletado (sin cambios) ---
+def crear_interfaz_paciente(supabase: Client):
+    st.title("Ficha de Ingreso Salud Mental")
+    st.write("Por favor, ingrese su RUT para cargar sus datos y luego complete el resto del formulario.")
+
+    if 'datos_paciente' not in st.session_state:
+        st.session_state.datos_paciente = {}
+
+    rut_a_buscar = st.text_input("Ingrese su RUT", placeholder="Ej. 12345678-9", help="Ingrese su RUT sin puntos y con guión.")
+    if st.button("Buscar Datos"):
+        if rut_a_buscar:
+            with st.spinner("Buscando información..."):
+                response = fetch_patient_data(rut_a_buscar)
+                if response and response != "not_found":
+                    st.session_state.datos_paciente = response.get("data", {})
+                    warnings = response.get("warnings", [])
+                    st.success("¡Datos encontrados y cargados!")
+                    if warnings:
+                        warning_message = "Por favor, revise y complete manualmente los siguientes campos: " + ", ".join(warnings) + "."
+                        st.warning(warning_message)
+                elif response == "not_found":
+                    st.warning("RUT no encontrado. Por favor, complete el formulario manualmente.")
+                    st.session_state.datos_paciente = {}
+                else:
+                    st.error("Ocurrió un error al buscar los datos.")
+        else:
+            st.warning("Por favor, ingrese un RUT.")
+
+    with st.form(key="salud_mental_form"):
+        st.header("Datos Personales")
+        nombre_completo = st.text_input("Nombre Completo", value=st.session_state.datos_paciente.get("nombre_completo", ""))
+        rut = st.text_input("RUT", value=st.session_state.datos_paciente.get("rut", rut_a_buscar))
+        edad_val = st.session_state.datos_paciente.get("edad")
+        edad = st.number_input("Edad", min_value=18, max_value=100, value=int(edad_val) if edad_val is not None else 18)
+        
+        telefono = st.text_input("Teléfono", value=st.session_state.datos_paciente.get("telefono", ""))
+        correo = st.text_input("Correo Electrónico", value=st.session_state.datos_paciente.get("correo", ""))
+        empresa = st.text_input("Empresa", value=st.session_state.datos_paciente.get("empresa", ""))
+        
+        sucursales_options = ["CENTRO DE SALUD WORKMED SANTIAGO", "CENTRO DE SALUD WORKMED ANTOFAGASTA", "CENTRO DE SALUD WORKMED CALAMA", "LOS ANDES (VIDA SALUD )",
+                              "CENTRO DE SALUD WORKMED SANTIAGO PISO 6", "CENTRO DE SALUD WORKMED CONCEPCION", "CENTRO DE SALUD WORKMED CALAMA GRANADEROS", "CENTRO DE SALUD WORKMED COPIAPÓ", "CENTRO DE SALUD WORKMED VIÑA DEL MAR",
+                              "CENTRO DE SALUD WORKMED IQUIQUE", "CENTRO DE SALUD WORKMED RANCAGUA", "CENTRO DE SALUD WORKMED LA SERENA", "CENTRO DE SALUD WORKMED TERRENO",
+                              "CENTRO DE SALUD WORKMED TELECONSULTA","CENTRO DE SALUD WORKMED AREQUIPA", "PERÚ", "CENTRO DE SALUD WORKMED DIEGO DE ALMAGRO",
+                              "CENTRO DE SALUD WORKMED COPIAPÓ (VITALMED)", "CENTRO DE SALUD WORKMED ARICA", "CENTRO DE SALUD WORKMED - BIONET CURICO",
+                              "CENTRO DE SALUD WORKMED - BIONET RENGO", "CENTRO DE SALUD WORKMED PUERTO MONTT", "WORKMED ITINERANTE",
+                              "CENTRO DE SALUD WORKMED - BIONET TALCA", "CENTRO DE SALUD WORKMED - BIONET TOCOPILLA", "CENTRO DE SALUD WORKMED - BIONET QUILLOTA",
+                              "CENTRO DE SALUD WORKMED - BIONET SAN ANTONIO", "CENTRO DE SALUD WORKMED - BIONET OVALLE", "CENTRO DE SALUD WORKMED - BIONET ILLAPEL",
+                              "CENTRO DE SALUD WORKMED SAN FELIPE", "CENTRO DE SALUD WORKMED - BIONET SALAMANCA", "CENTRO DE SALUD WORKMED - BIONET VIÑA DEL MAR",
+                              "CENTRO DE SALUD WORKMED - BIONET LOS ANDES", "CENTRO DE SALUD WORKMED - BIONET VALDIVIA", "CENTRO DE SALUD WORKMED - BIONET IQUIQUE",
+                              "CENTRO DE SALUD WORKMED PUNTA ARENAS"]
+        sucursal_encontrada = st.session_state.datos_paciente.get("sucursal_workmed")
+        if sucursal_encontrada and sucursal_encontrada not in sucursales_options:
+            sucursales_options.insert(0, sucursal_encontrada)
+        default_index = sucursales_options.index(sucursal_encontrada) if sucursal_encontrada in sucursales_options else 0
+        sucursal_workmed = st.selectbox("Sucursal Workmed", sucursales_options, index=default_index)
+        
+        cargo = st.text_input("Cargo", value=st.session_state.datos_paciente.get("cargo", ""))
+
+        st.header("Antecedentes Académicos y Laborales")
+        tipos_licencia_opciones = ["D", "B", "A1", "A2", "A3", "A4", "A5", "Otras", "No tengo Licencia de conducir"]
+        tipo_licencia = st.multiselect("Tipo de Licencia", tipos_licencia_opciones)
+        fecha_vencimiento_licencia = st.date_input("Fecha de Vencimiento de Licencia", value=None)
+        experiencia = st.selectbox("Experiencia Laboral", ["No tengo experiencia", "Menos de 2 años", "Entre 2 y 5 años", "Más de 5 años ", "Más de 20 años"])
+        educacion = st.selectbox("Educación", ["Educación básica completa", "Educación media completa", "Educación de nivel técnico superior completo", "Educación de nivel universitario completo", "Educación técnico nivel medio completo"])
+
+        st.header("Antecedentes Personales y Salud")
+        red_apoyo = st.selectbox("Red de Apoyo", ["Familia", "Hijos", "Amigos", "No tengo redes de apoyo"])
+        horas_sueño = st.selectbox("Horas de Sueño", ["Menos de 6 horas", "Entre 6 y 8 horas", "Más de 8 horas"])
+        tratamiento = st.text_area("Tratamiento Psicológico/Psiquiátrico (Si lo posee)")
+        fortaleza = st.text_area("Fortaleza")
+        debilidad = st.text_area("Debilidad")
+
+        st.header("Antecedentes de Seguridad y Prevención")
+        elementos_proteccion = st.text_area("Elementos de Protección Personal que utiliza en su trabajo")
+        estrategia_prev_accidente = st.text_area("Estrategia de Prevención de Accidentes que conoce o aplica")
+        riesgos_trabajo = st.text_area("Riesgos en el Trabajo")
+        accidentes_laborales = st.text_area("Accidentes Laborales Anteriores (describir brevemente)")
+
+        submit_button = st.form_submit_button("Guardar Ficha")
+
+        if submit_button:
+            if not all([nombre_completo, rut, edad, telefono, correo, empresa, cargo]):
+                st.error("Por favor, complete todos los campos obligatorios.")
+            else:
+                form_data = {
+                    "nombre_completo": nombre_completo, "rut": rut, "edad": edad, "telefono": telefono,
+                    "correo": correo, "empresa": empresa, "sucursal_workmed": sucursal_workmed, "cargo": cargo,
+                    "tipo_licencia": ", ".join(tipo_licencia), "fecha_vencimiento_licencia": fecha_vencimiento_licencia, 
+                    "experiencia": experiencia, "educacion": educacion, "red_apoyo": red_apoyo,
+                    "horas_sueño": horas_sueño, "tratamiento": tratamiento, "fortaleza": fortaleza,
+                    "debilidad": debilidad, "elementos_proteccion": elementos_proteccion,
+                    "estrategia_prev_accidente": estrategia_prev_accidente, "riesgos_trabajo": riesgos_trabajo,
+                    "accidentes_laborales": accidentes_laborales,
+                }
+                pdf_bytes = generar_pdf(form_data)
+                if guardar_pdf_en_supabase(supabase, pdf_bytes, rut, form_data):
+                    st.balloons()
+
