@@ -1,9 +1,6 @@
-supabase
+supabase-py
 pandas
 streamlit
-pymysql
+PyMySQL
 plotly
-datetime
-fpdf
-json
-io
+fpdf2
