@@ -1,0 +1,9 @@
+supabase
+pandas
+streamlit
+pymysql
+plotly
+datetime
+fpdf
+json
+io
