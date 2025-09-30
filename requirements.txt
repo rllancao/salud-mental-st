@@ -1,4 +1,4 @@
-supabase-py
+supabase>=1.0.0
 pandas
 streamlit
 PyMySQL
