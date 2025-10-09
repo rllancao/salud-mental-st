@@ -29,16 +29,19 @@ def fetch_agendados_hoy(sede):
     if not connection:
         return []
 
+    # Lógica para agrupar sedes de Santiago
+    sede_busqueda = sede
+    if "SANTIAGO" in sede:
+        sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
+
     query = """
     SELECT datosPersona
     FROM `agendaview`
     WHERE fecha = CURDATE() AND nombre_lab LIKE %s
     """
     try:
-        # Usamos 'with' para asegurar que el cursor se cierre
         with connection.cursor() as cursor:
-            # Se usa LIKE para agrupar sedes (ej. Santiago y Santiago Piso 6)
-            cursor.execute(query, (f"%{sede}%",))
+            cursor.execute(query, (f"%{sede_busqueda}%",))
             results = cursor.fetchall()
         
         pacientes_agendados = []
@@ -68,8 +71,12 @@ def fetch_completados_hoy(_supabase: Client, sede):
         tomorrow = today + timedelta(days=1)
         start_of_tomorrow = tomorrow.strftime('%Y-%m-%d 00:00:00')
         
-        # Usamos el operador 'like' para que coincida con la lógica de agendados
-        response = _supabase.from_('ficha_ingreso').select('rut').like('sucursal_workmed', f'%{sede}%').gte('created_at', start_of_today).lt('created_at', start_of_tomorrow).execute()
+        # Lógica para agrupar sedes de Santiago
+        sede_busqueda = sede
+        if "SANTIAGO" in sede:
+            sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
+
+        response = _supabase.from_('ficha_ingreso').select('rut').like('sucursal_workmed', f'%{sede_busqueda}%').gte('created_at', start_of_today).lt('created_at', start_of_tomorrow).execute()
         
         if response.data:
             return {item['rut'] for item in response.data}
@@ -81,23 +88,25 @@ def fetch_completados_hoy(_supabase: Client, sede):
 
 # --- Interfaz principal de la Enfermera ---
 def crear_interfaz_enfermera(_supabase: Client):
-    sede_enfermera = st.session_state.get("user_sede")
+    # --- CAMBIO CLAVE: Obtener la lista de sedes del usuario ---
+    sedes_enfermera = st.session_state.get("user_sedes", [])
 
-    if not sede_enfermera:
-        st.error("No se ha podido determinar su sede. Por favor, contacte a un administrador.")
+    if not sedes_enfermera:
+        st.error("No tiene sedes asignadas. Por favor, contacte a un administrador.")
         return
 
-    st.title(f"Panel de Enfermera - Sede: {sede_enfermera}")
+    # --- CAMBIO CLAVE: Mostrar un selector si hay más de una sede ---
+    if len(sedes_enfermera) > 1:
+        sede_seleccionada = st.selectbox("Seleccione una sede para visualizar:", options=sedes_enfermera)
+    else:
+        sede_seleccionada = sedes_enfermera[0]
+
+    st.title(f"Panel de Enfermera - Sede: {sede_seleccionada}")
     st.markdown("---")
 
-    # Lógica para agrupar sedes de Santiago
-    sede_busqueda = sede_enfermera
-    if "SANTIAGO" in sede_enfermera:
-        sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
-
-    with st.spinner("Actualizando lista de pacientes..."):
-        pacientes_agendados = fetch_agendados_hoy(sede_busqueda)
-        ruts_completados = fetch_completados_hoy(_supabase, sede_busqueda)
+    with st.spinner(f"Actualizando lista de pacientes para {sede_seleccionada}..."):
+        pacientes_agendados = fetch_agendados_hoy(sede_seleccionada)
+        ruts_completados = fetch_completados_hoy(_supabase, sede_seleccionada)
 
     if not pacientes_agendados:
         st.info("No hay pacientes agendados para el día de hoy en esta sede.")
@@ -124,16 +133,14 @@ def crear_interfaz_enfermera(_supabase: Client):
         if total_agendados > 0:
             labels = ['Completados', 'Pendientes']
             values = [total_completados, total_pendientes]
-            colors = ['#2ca02c', '#ffdd57'] # Verde y Amarillo
+            colors = ['#2ca02c', '#ffdd57']
             
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4,
                                         marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
             fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=250)
             
-            # --- CAMBIO CLAVE: Usar el parámetro 'config' para eliminar el warning ---
-            # También oculta la barra de herramientas de Plotly que no es necesaria.
             config = {'displayModeBar': False}
-            st.plotly_chart(fig, use_container_width=True, config=config)
+            st.plotly_chart(fig, width='stretch', config=config)
         else:
             st.info("No hay datos para mostrar en el gráfico.")
 
@@ -164,7 +171,7 @@ def crear_interfaz_enfermera(_supabase: Client):
 
     if filtered_list:
         df = pd.DataFrame(filtered_list)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
     else:
         st.info("No hay pacientes que coincidan con el filtro seleccionado.")
 

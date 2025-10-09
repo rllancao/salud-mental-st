@@ -4,6 +4,8 @@ import ficha_salud_mental
 import interfaz_psicologo
 import interfaz_enfermera
 
+# para correr el codigo: python -m streamlit run maestro.py 
+
 # --- Configuración de Supabase ---
 @st.cache_resource
 def init_supabase():
@@ -27,12 +29,13 @@ def load_user_profile(user):
             profile = response.data[0]
             st.session_state.user = user
             st.session_state.user_role = profile.get("rol")
-            st.session_state.user_sede = profile.get("sede")
+            # --- CAMBIO CLAVE: 'sede' ahora es una lista, la guardamos como 'user_sedes' ---
+            st.session_state.user_sedes = profile.get("sede", []) # Guardamos como lista
             return True
         else:
             st.session_state.user = user
             st.session_state.user_role = "paciente"
-            st.session_state.user_sede = None
+            st.session_state.user_sedes = [] # El paciente no tiene sedes
             return True
     except Exception as e:
         st.error(f"Error al cargar el perfil del usuario: {e}")
@@ -59,16 +62,13 @@ def sign_out():
 st.set_page_config(
     page_title="Gestión de Salud Mental",
     layout="wide",
-    # --- CAMBIO CLAVE: La barra lateral empieza oculta ---
     initial_sidebar_state="collapsed" 
 )
 
-# --- CAMBIO CLAVE: Mostrar el logo en el área principal y centrado ---
-col1, col2, col3 = st.columns([2, 3, 2]) # Columnas para centrar la imagen
+col1, col2, col3 = st.columns([2, 3, 2])
 with col2:
     st.image("workmed_logo.png", width='stretch')
 
-# --- Contenido de la barra lateral ---
 st.sidebar.title("Menú Principal")
 
 # --- Intentar restaurar la sesión al inicio ---
@@ -95,8 +95,12 @@ if st.session_state.get('user') is None:
 else:
     st.sidebar.write(f"Conectado como: {st.session_state.user.email}")
     st.sidebar.write(f"Rol: {st.session_state.user_role}")
-    if st.session_state.get("user_sede"):
-        st.sidebar.write(f"Sede: {st.session_state.user_sede}")
+    
+    # --- CAMBIO CLAVE: Mostrar la lista de sedes asignadas ---
+    if st.session_state.get("user_sedes"):
+        st.sidebar.write("Sedes Asignadas:")
+        for sede in st.session_state.user_sedes:
+            st.sidebar.markdown(f"- {sede}")
     
     if st.sidebar.button("Cerrar Sesión"):
         sign_out()

@@ -9,6 +9,8 @@ import json
 # --- Clase PDF (sin cambios) ---
 class PDF(FPDF):
     def header(self):
+        
+        self.image('workmed_logo.png', x=10, y=8, w=40)
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, 'Ficha de Ingreso Salud Mental', 0, 1, 'C')
         self.ln(10)
