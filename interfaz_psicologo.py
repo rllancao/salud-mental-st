@@ -5,62 +5,78 @@ import io
 BUCKET_NAME = "ficha_ingreso_SM_bucket"
 
 def crear_interfaz_psicologo(supabase: Client):
-    st.title("Búsqueda y Descarga de Fichas de Ingreso")
-    st.write("Ingrese el RUT del paciente para buscar todas sus fichas de salud mental asociadas.")
+    st.title("Búsqueda y Descarga de Informes de Pacientes")
+    st.write("Ingrese el RUT del paciente para buscar todos sus informes de salud mental asociados.")
 
     rut_busqueda = st.text_input("RUT del Paciente", placeholder="Ej. 12345678-9")
 
-    if st.button("Buscar Fichas"):
+    if st.button("Buscar Informes"):
         if not rut_busqueda:
             st.warning("Por favor, ingrese un RUT para buscar.")
             return
 
-        try:
-            # --- CAMBIO CLAVE: Se elimina .limit(1) para obtener TODOS los registros ---
-            response = supabase.from_('registros_fichas_sm').select('nombre_completo, pdf_path').eq('rut', rut_busqueda).execute()
+        with st.spinner("Buscando todos los informes del paciente..."):
+            try:
+                todos_los_paths = set() # Usamos un 'set' para evitar duplicados automáticamente
+                nombre_paciente = ""
 
-            if response.data:
-                # Obtenemos el nombre del primer registro (asumimos que es el mismo para todos)
-                nombre_completo = response.data[0]['nombre_completo']
-                num_fichas = len(response.data)
+                # 1. Buscar en 'registros_fichas_sm'
+                fichas_response = supabase.from_('registros_fichas_sm').select('nombre_completo, pdf_path').eq('rut', rut_busqueda).execute()
+                if fichas_response.data:
+                    if not nombre_paciente:
+                        nombre_paciente = fichas_response.data[0]['nombre_completo']
+                    for ficha in fichas_response.data:
+                        if ficha.get('pdf_path'):
+                            todos_los_paths.add(ficha['pdf_path'])
+
+                # 2. Buscar en 'test_epworth'
+                ids_response = supabase.from_('ficha_ingreso').select('id').eq('rut', rut_busqueda).execute()
+                if ids_response.data:
+                    fichas_ids = [item['id'] for item in ids_response.data]
+                    epworth_response = supabase.from_('test_epworth').select('pdf_path').in_('id', fichas_ids).execute()
+                    if epworth_response.data:
+                        for test in epworth_response.data:
+                            if test.get('pdf_path'):
+                                todos_los_paths.add(test['pdf_path'])
                 
-                st.success(f"Se encontraron {num_fichas} fichas para el paciente: {nombre_completo}")
-                st.markdown("---")
+                # (Aquí se agregarían búsquedas en otras tablas de tests)
 
-                # --- CAMBIO CLAVE: Iterar sobre cada ficha encontrada ---
-                for ficha in response.data:
-                    pdf_path_from_db = ficha['pdf_path']
-                    # El nombre del archivo ahora contiene la fecha (ej: 12345678-9_2025-09-26.pdf)
-                    file_name_for_download = pdf_path_from_db.split('/')[-1]
+                # 3. Procesar y mostrar los informes únicos
+                if todos_los_paths:
+                    st.success(f"Se encontraron {len(todos_los_paths)} informes únicos para el paciente: {nombre_paciente}")
+                    st.markdown("---")
 
-                    # Extraer la fecha del nombre del archivo para mostrarla
-                    try:
-                        fecha_ficha = file_name_for_download.split('_')[1].replace('.pdf', '')
-                        st.subheader(f"Ficha del {fecha_ficha}")
-                    except IndexError:
-                        st.subheader(f"Archivo: {file_name_for_download}")
+                    for path in todos_los_paths:
+                        nombre_archivo = path.split('/')[-1]
+                        
+                        # Identificar el tipo de informe por el nombre del archivo
+                        tipo_informe = "Informe Desconocido"
+                        if "FichaIngreso" in nombre_archivo:
+                            tipo_informe = "Informe de Ficha de Ingreso"
+                        elif "Epworth" in nombre_archivo:
+                            tipo_informe = "Informe de Test de Epworth"
+                        
+                        st.subheader(f"📄 {tipo_informe}")
+                        st.write(f"Nombre del archivo: `{nombre_archivo}`")
 
+                        try:
+                            res = supabase.storage.from_(BUCKET_NAME).download(path=path)
+                            pdf_bytes = io.BytesIO(res)
 
-                    try:
-                        # Descargar los bytes del archivo específico
-                        res = supabase.storage.from_(BUCKET_NAME).download(path=pdf_path_from_db)
-                        pdf_bytes = io.BytesIO(res)
+                            st.download_button(
+                                label=f"Descargar {tipo_informe}",
+                                data=pdf_bytes,
+                                file_name=nombre_archivo,
+                                mime="application/pdf",
+                                key=path # El path ahora es garantizadamente único
+                            )
+                            st.markdown("---")
+                        except Exception as download_error:
+                            st.error(f"No se pudo descargar el archivo '{nombre_archivo}': {download_error}")
 
-                        # Mostrar un botón de descarga para cada ficha
-                        st.download_button(
-                            label=f"Descargar Ficha",
-                            data=pdf_bytes,
-                            file_name=file_name_for_download,
-                            mime="application/pdf",
-                            # Usamos la ruta completa como una 'key' única para el botón
-                            key=pdf_path_from_db 
-                        )
-                        st.markdown("---")
+                else:
+                    st.warning(f"No se encontró ningún informe para el RUT: {rut_busqueda}")
 
-                    except Exception as download_error:
-                        st.error(f"No se pudo descargar el archivo '{file_name_for_download}': {download_error}")
-            else:
-                st.warning(f"No se encontró ninguna ficha para el RUT: {rut_busqueda}")
+            except Exception as db_error:
+                st.error(f"Error al consultar la base de datos: {db_error}")
 
-        except Exception as db_error:
-            st.error(f"Error al consultar la base de datos: {db_error}")

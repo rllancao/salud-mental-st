@@ -6,7 +6,13 @@ import json
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
-# --- Conexión a Base de Datos MySQL (Necesaria para buscar agendados) ---
+# --- NUEVO: Lista de tests de salud mental relevantes ---
+TESTS_SALUD_MENTAL = [
+    "EPWORTH", "DISC", "WONDERLIC", "ALERTA", "BARRATT", 
+    "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN"
+]
+
+# --- Conexión a Base de Datos MySQL ---
 @st.cache_resource
 def connect_to_mysql():
     try:
@@ -22,22 +28,23 @@ def connect_to_mysql():
         st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
         return None
 
-# --- Función para obtener pacientes agendados para hoy en una sede ---
-@st.cache_data(ttl=300) # Cache de 5 minutos para no sobrecargar la BD
+# --- Función para obtener pacientes agendados (MODIFICADA) ---
+@st.cache_data(ttl=300)
 def fetch_agendados_hoy(sede):
     connection = connect_to_mysql()
     if not connection:
         return []
 
-    # Lógica para agrupar sedes de Santiago
     sede_busqueda = sede
     if "SANTIAGO" in sede:
         sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
 
     query = """
-    SELECT datosPersona
-    FROM `agendaview`
-    WHERE fecha = CURDATE() AND nombre_lab LIKE %s
+    SELECT datosPersona, prestacionesSalud
+    FROM `agendaViewPrest`
+    WHERE fecha = CURDATE() 
+      AND nombre_lab LIKE %s 
+      AND prestacionesSalud IS NOT NULL
     """
     try:
         with connection.cursor() as cursor:
@@ -47,131 +54,161 @@ def fetch_agendados_hoy(sede):
         pacientes_agendados = []
         for row in results:
             datos_persona = json.loads(row[0])
-            nombre_completo = " ".join(filter(None, [
-                datos_persona.get('nombre', '').strip(),
-                datos_persona.get('nombre2', '').strip(),
-                datos_persona.get('apellidoP', '').strip(),
-                datos_persona.get('apellidoM', '').strip()
-            ]))
-            pacientes_agendados.append({
-                "rut": datos_persona.get('rut'),
-                "nombre_completo": nombre_completo
-            })
+            
+            # Filtrar las prestaciones para quedarnos solo con las de salud mental
+            prestaciones_str = row[1]
+            tests_asignados = []
+            if prestaciones_str:
+                try:
+                    lista_prestaciones_raw = json.loads(prestaciones_str)
+                    for prestacion in lista_prestaciones_raw:
+                        for test_valido in TESTS_SALUD_MENTAL:
+                            if test_valido in prestacion.upper():
+                                if test_valido not in tests_asignados:
+                                    tests_asignados.append(test_valido)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            # Solo agregamos al paciente si tiene al menos un test de salud mental asignado
+            if tests_asignados:
+                nombre_completo = " ".join(filter(None, [
+                    datos_persona.get('nombre', '').strip(),
+                    datos_persona.get('nombre2', '').strip(),
+                    datos_persona.get('apellidoP', '').strip(),
+                    datos_persona.get('apellidoM', '').strip()
+                ]))
+                pacientes_agendados.append({
+                    "rut": datos_persona.get('rut'),
+                    "nombre_completo": nombre_completo,
+                    "tests_asignados": tests_asignados # Guardamos la lista de tests
+                })
         return pacientes_agendados
     except Exception as e:
         st.error(f"Error al buscar los pacientes agendados: {e}")
         return []
 
-# --- Función para obtener RUTs de fichas completadas hoy en una sede ---
-@st.cache_data(ttl=60) # Cache de 1 minuto
-def fetch_completados_hoy(_supabase: Client, sede):
+# --- NUEVO: Función para obtener el progreso de los tests de varios pacientes ---
+@st.cache_data(ttl=60)
+def fetch_progreso_tests(_supabase: Client, ruts: list):
+    progreso = {rut: [] for rut in ruts}
+    if not ruts:
+        return progreso
+
     try:
-        today = datetime.now()
-        start_of_today = today.strftime('%Y-%m-%d 00:00:00')
-        tomorrow = today + timedelta(days=1)
-        start_of_tomorrow = tomorrow.strftime('%Y-%m-%d 00:00:00')
+        # 1. Mapear RUT a ID de ficha_ingreso
+        fichas_response = _supabase.from_('ficha_ingreso').select('id, rut').in_('rut', ruts).execute()
+        if not fichas_response.data:
+            return progreso
         
-        # Lógica para agrupar sedes de Santiago
-        sede_busqueda = sede
-        if "SANTIAGO" in sede:
-            sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
+        rut_a_id_map = {item['rut']: item['id'] for item in fichas_response.data}
+        id_a_rut_map = {item['id']: item['rut'] for item in fichas_response.data}
+        ids = list(rut_a_id_map.values())
 
-        response = _supabase.from_('ficha_ingreso').select('rut').like('sucursal_workmed', f'%{sede_busqueda}%').gte('created_at', start_of_today).lt('created_at', start_of_tomorrow).execute()
+        # 2. Consultar tests completados (por ahora solo Epworth)
+        epworth_response = _supabase.from_('test_epworth').select('id').in_('id', ids).eq('estado', 'Completado').execute()
+        if epworth_response.data:
+            for item in epworth_response.data:
+                rut = id_a_rut_map.get(item['id'])
+                if rut:
+                    progreso[rut].append("EPWORTH")
         
-        if response.data:
-            return {item['rut'] for item in response.data}
-        return set()
+        # (Aquí se agregarían las consultas para otros tests: DISC, Barratt, etc.)
+
     except Exception as e:
-        st.error(f"Error al buscar las fichas completadas: {e}")
-        return set()
+        st.error(f"Error al verificar el progreso de los tests: {e}")
+    
+    return progreso
 
-
-# --- Interfaz principal de la Enfermera ---
+# --- Interfaz principal de la Enfermera (MODIFICADA) ---
 def crear_interfaz_enfermera(_supabase: Client):
-    # --- CAMBIO CLAVE: Obtener la lista de sedes del usuario ---
     sedes_enfermera = st.session_state.get("user_sedes", [])
-
     if not sedes_enfermera:
         st.error("No tiene sedes asignadas. Por favor, contacte a un administrador.")
         return
 
-    # --- CAMBIO CLAVE: Mostrar un selector si hay más de una sede ---
+    sede_seleccionada = sedes_enfermera[0]
     if len(sedes_enfermera) > 1:
         sede_seleccionada = st.selectbox("Seleccione una sede para visualizar:", options=sedes_enfermera)
-    else:
-        sede_seleccionada = sedes_enfermera[0]
 
     st.title(f"Panel de Enfermera - Sede: {sede_seleccionada}")
     st.markdown("---")
 
     with st.spinner(f"Actualizando lista de pacientes para {sede_seleccionada}..."):
         pacientes_agendados = fetch_agendados_hoy(sede_seleccionada)
-        ruts_completados = fetch_completados_hoy(_supabase, sede_seleccionada)
+        ruts_de_hoy = [p['rut'] for p in pacientes_agendados]
+        progreso_tests = fetch_progreso_tests(_supabase, ruts_de_hoy)
 
     if not pacientes_agendados:
-        st.info("No hay pacientes agendados para el día de hoy en esta sede.")
+        st.info("No hay pacientes con prestaciones de salud mental agendados para hoy en esta sede.")
         return
 
     lista_final_pacientes = []
+    stats = {"Finalizado": 0, "En Progreso": 0, "Pendiente": 0}
+
     for paciente in pacientes_agendados:
-        estado = "🟢 Completado" if paciente['rut'] in ruts_completados else "🟡 Pendiente"
+        rut = paciente['rut']
+        tests_asignados = paciente['tests_asignados']
+        tests_completados = progreso_tests.get(rut, [])
+        
+        num_asignados = len(tests_asignados)
+        num_completados = len(tests_completados)
+
+        if num_asignados == 0:
+            continue
+
+        if num_completados == num_asignados:
+            estado = "✅ Finalizado"
+            stats["Finalizado"] += 1
+        elif num_completados > 0:
+            estado = f"🔵 En Progreso ({num_completados}/{num_asignados})"
+            stats["En Progreso"] += 1
+        else:
+            estado = "🟡 Pendiente"
+            stats["Pendiente"] += 1
+        
         lista_final_pacientes.append({
-            'RUT': paciente['rut'],
+            'RUT': rut,
             'Nombre Paciente': paciente['nombre_completo'],
-            'Estado Ficha Ingreso': estado
+            'Estado Evaluaciones': estado
         })
 
-    total_agendados = len(pacientes_agendados)
-    total_completados = len(ruts_completados)
-    total_pendientes = total_agendados - total_completados
+    total_agendados = len(lista_final_pacientes)
     
-    # --- UI con Gráfico y Resumen ---
     col1, col2 = st.columns([1, 1])
-
     with col1:
-        st.subheader("Estado de Fichas de Ingreso")
+        st.subheader("Estado de Evaluaciones")
         if total_agendados > 0:
-            labels = ['Completados', 'Pendientes']
-            values = [total_completados, total_pendientes]
-            colors = ['#2ca02c', '#ffdd57']
-            
-            fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4,
-                                        marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
+            labels = ['Finalizados', 'En Progreso', 'Pendientes']
+            values = [stats['Finalizado'], stats['En Progreso'], stats['Pendiente']]
+            colors = ['#2ca02c', '#1f77b4', '#ffdd57']
+            fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4, marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
             fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=250)
-            
             config = {'displayModeBar': False}
-            st.plotly_chart(fig, width='stretch', config=config)
-        else:
-            st.info("No hay datos para mostrar en el gráfico.")
+            st.plotly_chart(fig, use_container_width=True, config=config)
 
     with col2:
         st.subheader("Resumen del Día")
-        st.metric("Total Agendados", total_agendados)
-        st.metric("Fichas Completadas", total_completados)
-        st.metric("Fichas Pendientes", total_pendientes, delta_color="inverse")
+        st.metric("Total Pacientes (Salud Mental)", total_agendados)
+        st.metric("Procesos Finalizados", stats['Finalizado'])
+        st.metric("Procesos Pendientes", stats['Pendiente'] + stats['En Progreso'], delta_color="inverse")
 
     st.markdown("---")
     
-    # --- Filtros Interactivos ---
     st.write("#### Filtrar Pacientes")
-    filter_option = st.radio(
-        "Seleccione una vista:",
-        ('Todos', 'Pendientes', 'Completados'),
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    filter_option = st.radio("Seleccione una vista:", ('Todos', 'Pendientes', 'En Progreso', 'Finalizados'), horizontal=True, label_visibility="collapsed")
 
-    # --- Tabla Filtrada ---
     if filter_option == "Pendientes":
-        filtered_list = [p for p in lista_final_pacientes if p['Estado Ficha Ingreso'] == "🟡 Pendiente"]
-    elif filter_option == "Completados":
-        filtered_list = [p for p in lista_final_pacientes if p['Estado Ficha Ingreso'] == "🟢 Completado"]
-    else: # "Todos"
+        filtered_list = [p for p in lista_final_pacientes if 'Pendiente' in p['Estado Evaluaciones']]
+    elif filter_option == "En Progreso":
+        filtered_list = [p for p in lista_final_pacientes if 'En Progreso' in p['Estado Evaluaciones']]
+    elif filter_option == "Finalizados":
+        filtered_list = [p for p in lista_final_pacientes if 'Finalizado' in p['Estado Evaluaciones']]
+    else:
         filtered_list = lista_final_pacientes
 
     if filtered_list:
         df = pd.DataFrame(filtered_list)
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
     else:
         st.info("No hay pacientes que coincidan con el filtro seleccionado.")
 
