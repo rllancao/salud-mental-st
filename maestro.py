@@ -4,6 +4,7 @@ import ficha_salud_mental
 import interfaz_psicologo
 import interfaz_enfermera
 import test_epworth 
+import test_wonderlic
 import generador_pdf
 from datetime import datetime, date
 
@@ -93,7 +94,8 @@ def guardar_datos_finales(supabase_client):
 
     # --- Paso 2: Generar y Guardar PDF Principal ---
     try:
-        pdf_bytes_main = ficha_salud_mental.generar_pdf(ficha_data_original)
+        wonderlic_data = st.session_state.form_data.get('test_wonderlic')
+        pdf_bytes_main = ficha_salud_mental.generar_pdf(ficha_data_original, wonderlic_data=wonderlic_data)
         nombre_archivo_main = f"{rut_paciente}_{fecha_actual_str}_FichaIngreso.pdf"
         file_path_main = f"fichas_ingreso_SM/{nombre_archivo_main}"
         supabase_client.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes_main, path=file_path_main, file_options={"content-type": "application/pdf"})
@@ -106,14 +108,14 @@ def guardar_datos_finales(supabase_client):
         st.error(f"Error al generar o guardar el PDF de la Ficha de Ingreso: {e}")
         return False
 
-    # --- Paso 3: Guardar Test de Epworth (si existe) ---
+    # --- Paso 3: Guardar Tests ---
     try:
+        # Test de Epworth
         epworth_data = st.session_state.form_data.get('test_epworth')
         if epworth_data:
             pdf_bytes_epworth = generador_pdf.generar_pdf_epworth(epworth_data, ficha_data_original)
             nombre_archivo_epworth = f"{rut_paciente}_{fecha_actual_str}_Epworth.pdf"
             file_path_epworth = f"fichas_ingreso_SM/{nombre_archivo_epworth}"
-            
             supabase_client.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes_epworth, path=file_path_epworth, file_options={"content-type": "application/pdf"})
             
             epworth_data_db = epworth_data.copy()
@@ -121,42 +123,45 @@ def guardar_datos_finales(supabase_client):
             epworth_data_db['estado'] = 'Completado'
             epworth_data_db['pdf_path'] = file_path_epworth
             supabase_client.from_('test_epworth').insert(epworth_data_db).execute()
+        
+        # Test de Wonderlic
+        wonderlic_data = st.session_state.form_data.get('test_wonderlic')
+        if wonderlic_data:
+            wonderlic_data_db = wonderlic_data.copy()
+            wonderlic_data_db['id'] = ficha_id
+            supabase_client.from_('test_wonderlic').insert(wonderlic_data_db).execute()
+
     except Exception as e:
-        st.warning(f"La ficha principal se guardó, pero hubo un error al guardar los datos del Test de Epworth: {e}")
+        st.warning(f"La ficha principal se guardó, pero hubo un error al guardar los datos de los tests: {e}")
 
     return True
 
 
-# --- Router para el flujo del paciente (MODIFICADO) ---
+# --- Router para el flujo del paciente (CORREGIDO) ---
 def patient_flow_router(supabase_client):
-    if st.session_state.get("step") == "test":
+    current_step = st.session_state.get("step", "ficha")
+
+    if current_step == "test":
         current_index = st.session_state.get("current_test_index", 0)
         lista_tests = st.session_state.get("lista_tests", [])
-
-        # --- CAMBIO CLAVE: Si no hay tests, ir directo a la pantalla final ---
-        if not lista_tests:
-            st.session_state.step = "final" # Creamos un nuevo paso
-            st.rerun()
 
         if current_index < len(lista_tests):
             test_actual = lista_tests[current_index]
             
-            # El directorio ahora usa los nombres normalizados
             if "EPWORTH" == test_actual:
                 test_epworth.crear_interfaz_epworth(supabase_client)
-            # elif "DISC" == test_actual:
-            #     # ... futuro test ...
+            elif "WONDERLIC" == test_actual:
+                test_wonderlic.crear_interfaz_wonderlic(supabase_client)
             else:
                 st.warning(f"El test '{test_actual}' aún no está implementado. Será omitido.")
                 if st.button("Continuar"):
                     st.session_state.current_test_index += 1
                     st.rerun()
-        else:
-            # Si se terminaron los tests, pasamos al paso final
+        else: # Si ya no hay más tests en la lista
             st.session_state.step = "final"
             st.rerun()
 
-    elif st.session_state.get("step") == "final":
+    elif current_step == "final":
         st.success("Ha completado todas las evaluaciones agendadas.")
         st.info("Por favor, presione 'Guardar Todo' para finalizar el proceso.")
         if st.button("Guardar Todo", type="primary"):
@@ -168,9 +173,8 @@ def patient_flow_router(supabase_client):
                         if key in st.session_state:
                             del st.session_state[key]
                     st.info("Puede cerrar esta ventana.")
-
-    else:
-        # El paso inicial siempre es la ficha de ingreso
+    
+    else: # current_step == "ficha"
         ficha_salud_mental.crear_interfaz_paciente(supabase_client)
 
 # --- Lógica principal de la aplicación ---
@@ -184,8 +188,7 @@ col1, col2, col3 = st.columns([2, 3, 2])
 with col2:
     st.image("workmed_logo.png", width='stretch')
 
-st.sidebar.title("Menú Principal")
-
+# --- Intentar restaurar la sesión al inicio ---
 if 'user' not in st.session_state:
     session = supabase.auth.get_session()
     if session and session.user:
@@ -193,7 +196,10 @@ if 'user' not in st.session_state:
     else:
         st.session_state.user = None
 
+# --- Lógica de Visualización (CORREGIDA para ser mutuamente excluyente) ---
 if st.session_state.get('user') is None:
+    # Si no hay usuario logueado, SIEMPRE se muestra el flujo del paciente
+    st.sidebar.title("Menú Principal")
     with st.sidebar.expander("Acceso para Personal"):
         email = st.text_input("Correo")
         password = st.text_input("Contraseña", type="password")
@@ -201,9 +207,12 @@ if st.session_state.get('user') is None:
         if st.button("Iniciar Sesión"):
             sign_in(email, password)
     
+    # La llamada única al router soluciona el bug de renderizado doble
     patient_flow_router(supabase)
 
 else:
+    # Si hay un usuario logueado, se muestra su interfaz específica
+    st.sidebar.title("Menú Principal")
     st.sidebar.write(f"Conectado como: {st.session_state.user.email}")
     st.sidebar.write(f"Rol: {st.session_state.user_role}")
     if st.session_state.get("user_sedes"):
@@ -214,6 +223,7 @@ else:
     if st.sidebar.button("Cerrar Sesión"):
         sign_out()
     
+    # Se llama a la interfaz correspondiente al rol, o al router si es paciente
     if st.session_state.user_role == "paciente":
         patient_flow_router(supabase)
     elif st.session_state.user_role == "psicologo":

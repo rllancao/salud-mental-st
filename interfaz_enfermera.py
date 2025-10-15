@@ -95,7 +95,6 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
         return progreso
 
     try:
-        # 1. Mapear RUT a ID de ficha_ingreso
         fichas_response = _supabase.from_('ficha_ingreso').select('id, rut').in_('rut', ruts).execute()
         if not fichas_response.data:
             return progreso
@@ -104,7 +103,7 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
         id_a_rut_map = {item['id']: item['rut'] for item in fichas_response.data}
         ids = list(rut_a_id_map.values())
 
-        # 2. Consultar tests completados (por ahora solo Epworth)
+        # Consultar Test de Epworth
         epworth_response = _supabase.from_('test_epworth').select('id').in_('id', ids).eq('estado', 'Completado').execute()
         if epworth_response.data:
             for item in epworth_response.data:
@@ -112,7 +111,14 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
                 if rut:
                     progreso[rut].append("EPWORTH")
         
-        # (Aquí se agregarían las consultas para otros tests: DISC, Barratt, etc.)
+        # --- NUEVO: Consultar Test de Wonderlic ---
+        # Como Wonderlic no tiene columna 'estado', simplemente verificamos si existe un registro.
+        wonderlic_response = _supabase.from_('test_wonderlic').select('id').in_('id', ids).execute()
+        if wonderlic_response.data:
+            for item in wonderlic_response.data:
+                rut = id_a_rut_map.get(item['id'])
+                if rut:
+                    progreso[rut].append("WONDERLIC")
 
     except Exception as e:
         st.error(f"Error al verificar el progreso de los tests: {e}")

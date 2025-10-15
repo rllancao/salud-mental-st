@@ -135,7 +135,7 @@ def fetch_patient_data(rut_paciente):
         return None
 
 # --- Función para generar PDF ---
-def generar_pdf(form_data):
+def generar_pdf(form_data, wonderlic_data = None):
     if not form_data: return b''
     
     pdf_data = form_data.copy()
@@ -178,6 +178,30 @@ def generar_pdf(form_data):
         "Riesgos en el Trabajo": pdf_data.get("riesgos_trabajo"),
         "Accidentes Laborales Anteriores": pdf_data.get("accidentes_laborales"),
     })
+    
+    # --- CAMBIO CLAVE: Añadir sección de resultados Wonderlic si existen ---
+    if wonderlic_data:
+        pdf.add_page()
+        pdf.chapter_title("Resultados Test de Habilidad Cognitiva (Wonderlic)")
+
+        # Calcular el puntaje total
+        total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_'))
+
+        # Determinar la interpretación del puntaje
+        interpretacion = ""
+        if total_score <= 15:
+            interpretacion = "Puntaje bajo. Podría indicar posibles dificultades para comprender instrucciones complejas o resolver problemas abstractos."
+        elif 16 <= total_score <= 24:
+            interpretacion = "Puntaje en el rango promedio. Indica una capacidad adecuada para el aprendizaje y la resolución de problemas en la mayoría de los entornos laborales."
+        elif 25 <= total_score <= 34:
+            interpretacion = "Puntaje sobre el promedio. Sugiere una alta capacidad para el aprendizaje rápido, el razonamiento lógico y la toma de decisiones."
+        else: # >= 35
+            interpretacion = "Puntaje superior. Indica una habilidad cognitiva excepcional para el análisis y la resolución de problemas complejos."
+
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, f"Puntaje Total Obtenido: {total_score} / 50", 0, 1)
+        pdf.set_font('Arial', '', 10)
+        pdf.multi_cell(0, 7, f"Interpretación: {interpretacion}")
     
     return pdf.output(dest='S').encode('latin1')
 
