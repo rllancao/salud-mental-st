@@ -135,7 +135,7 @@ def fetch_patient_data(rut_paciente):
         return None
 
 # --- Función para generar PDF ---
-def generar_pdf(form_data, wonderlic_data = None):
+def generar_pdf(form_data, wonderlic_data = None, disc_data = None):
     if not form_data: return b''
     
     pdf_data = form_data.copy()
@@ -185,23 +185,58 @@ def generar_pdf(form_data, wonderlic_data = None):
         pdf.chapter_title("Resultados Test de Habilidad Cognitiva (Wonderlic)")
 
         # Calcular el puntaje total
-        total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_'))
-
+        if 15 <= pdf_data.get("edad") <= 29:
+            total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_'))
+        elif 30 <= pdf_data.get("edad") <= 39:
+            total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_')) + 1
+        elif 40 <= pdf_data.get("edad") <= 49:
+            total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_')) + 2
+        elif 50 <= pdf_data.get("edad") <= 54:
+            total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_')) + 3
+        elif 55 <= pdf_data.get("edad") <= 60:
+            total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_')) + 4
+        else:
+            total_score = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_')) + 5
+ 
         # Determinar la interpretación del puntaje
         interpretacion = ""
         if total_score <= 15:
-            interpretacion = "Puntaje bajo. Podría indicar posibles dificultades para comprender instrucciones complejas o resolver problemas abstractos."
-        elif 16 <= total_score <= 24:
-            interpretacion = "Puntaje en el rango promedio. Indica una capacidad adecuada para el aprendizaje y la resolución de problemas en la mayoría de los entornos laborales."
+            interpretacion = "Personas que poseen una capacidad regular para desarrollar actividades nuevas, sin embargo, logran desempeñar tareas rutinarias y monótonas con éxito. Pueden operar equipos de fácil manejo sin inconvenientes. Se recomienda de supervisión inicial en cargos nuevos, con el fin de facilitar el desempeño favorable y positivo."
+        elif 16 <= total_score <= 19:
+            interpretacion = "Personas capaces de desarrollar actividades simples sin dificultades. Con habilidades para desempeñarse en tareas repetitivas con efectividad, manteniendo un ritmo estable de trabajo. Frente a la toma de decisiones más complejas, es probable que se apoyen de sus compañeros de trabajo o de jefaturas. Tienen bastante éxito en situaciones elementales dentro del trabajo."
+        elif 20 <= total_score <= 24:
+            interpretacion = "Logran aprender rutinas de trabajo rápidamente contando con una buena capacidad para desarrollarse en tareas de mediana complejidad. En este sentido, tienden a apoyarse de materiales escritos y de experiencias pasadas. Podrían eventualmente pedir ayuda frente a problemas más complejos y tomar decisiones importantes."
         elif 25 <= total_score <= 34:
-            interpretacion = "Puntaje sobre el promedio. Sugiere una alta capacidad para el aprendizaje rápido, el razonamiento lógico y la toma de decisiones."
+            interpretacion = "Cuentan con una muy buena capacidad para aprender por su cuenta, pueden recopilar información para tomar decisiones con poca o escasa ayuda. Poseen habilidades para analizar los problemas que se les presentan con un número limitado de  alternativas."
         else: # >= 35
-            interpretacion = "Puntaje superior. Indica una habilidad cognitiva excepcional para el análisis y la resolución de problemas complejos."
+            interpretacion = "Personas capaces de reunir y sintetizar información fácilmente, pueden inferir información y llegar a conclusiones sobre sus situaciones de trabajo. Poseen excelentes habilidades para solucionar problemas. Son de aprendizaje rápido y tienen mucha facilidad para tomar decisiones cuando falta información. "
 
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 10, f"Puntaje Total Obtenido: {total_score} / 50", 0, 1)
         pdf.set_font('Arial', '', 10)
         pdf.multi_cell(0, 7, f"Interpretación: {interpretacion}")
+        
+        if disc_data:
+            # No se añade página nueva para que continúe en la misma hoja si cabe
+            pdf.ln(10) # Espacio antes de la nueva sección
+            pdf.chapter_title("Resultados Test de Comportamiento (DISC)")
+
+            profile_name = disc_data.get("profile_name", "No determinado")
+            profile_details = disc_data.get("profile_details", {})
+
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, f"Perfil de Personalidad: {profile_name}", 0, 1)
+            
+            if profile_details:
+                pdf.set_font('Arial', '', 10)
+                for key, value in profile_details.items():
+                    if value: # Solo mostrar si hay contenido
+                        pdf.set_font('Arial', 'B', 10)
+                        # Usamos multi_cell para las claves y valores por si son largos
+                        pdf.multi_cell(0, 5, f"{key.replace('_', ' ').title()}:")
+                        pdf.set_font('Arial', '', 10)
+                        pdf.multi_cell(0, 5, str(value))
+                        pdf.ln(2) # Espacio entre cada característica
     
     return pdf.output(dest='S').encode('latin1')
 

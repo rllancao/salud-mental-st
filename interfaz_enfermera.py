@@ -6,7 +6,6 @@ import json
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
-# --- NUEVO: Lista de tests de salud mental relevantes ---
 TESTS_SALUD_MENTAL = [
     "EPWORTH", "DISC", "WONDERLIC", "ALERTA", "BARRATT", 
     "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN"
@@ -28,7 +27,7 @@ def connect_to_mysql():
         st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
         return None
 
-# --- Función para obtener pacientes agendados (MODIFICADA) ---
+# --- Función para obtener pacientes agendados ---
 @st.cache_data(ttl=300)
 def fetch_agendados_hoy(sede):
     connection = connect_to_mysql()
@@ -54,8 +53,6 @@ def fetch_agendados_hoy(sede):
         pacientes_agendados = []
         for row in results:
             datos_persona = json.loads(row[0])
-            
-            # Filtrar las prestaciones para quedarnos solo con las de salud mental
             prestaciones_str = row[1]
             tests_asignados = []
             if prestaciones_str:
@@ -69,7 +66,6 @@ def fetch_agendados_hoy(sede):
                 except (json.JSONDecodeError, TypeError):
                     continue
             
-            # Solo agregamos al paciente si tiene al menos un test de salud mental asignado
             if tests_asignados:
                 nombre_completo = " ".join(filter(None, [
                     datos_persona.get('nombre', '').strip(),
@@ -80,14 +76,36 @@ def fetch_agendados_hoy(sede):
                 pacientes_agendados.append({
                     "rut": datos_persona.get('rut'),
                     "nombre_completo": nombre_completo,
-                    "tests_asignados": tests_asignados # Guardamos la lista de tests
+                    "tests_asignados": tests_asignados
                 })
         return pacientes_agendados
     except Exception as e:
         st.error(f"Error al buscar los pacientes agendados: {e}")
         return []
 
-# --- NUEVO: Función para obtener el progreso de los tests de varios pacientes ---
+# --- NUEVO: Función para obtener RUTs de pacientes que ya iniciaron el proceso ---
+@st.cache_data(ttl=60)
+def fetch_iniciados_hoy(_supabase: Client, sede):
+    try:
+        today = datetime.now()
+        start_of_today = today.strftime('%Y-%m-%d 00:00:00')
+        tomorrow = today + timedelta(days=1)
+        start_of_tomorrow = tomorrow.strftime('%Y-%m-%d 00:00:00')
+
+        sede_busqueda = sede
+        if "SANTIAGO" in sede:
+            sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
+
+        response = _supabase.from_('ficha_ingreso').select('rut').like('sucursal_workmed', f'%{sede_busqueda}%').gte('created_at', start_of_today).lt('created_at', start_of_tomorrow).execute()
+
+        if response.data:
+            return {item['rut'] for item in response.data}
+        return set()
+    except Exception as e:
+        st.error(f"Error al buscar las fichas iniciadas: {e}")
+        return set()
+
+# --- Función para obtener el progreso de los tests ---
 @st.cache_data(ttl=60)
 def fetch_progreso_tests(_supabase: Client, ruts: list):
     progreso = {rut: [] for rut in ruts}
@@ -103,7 +121,9 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
         id_a_rut_map = {item['id']: item['rut'] for item in fichas_response.data}
         ids = list(rut_a_id_map.values())
 
-        # Consultar Test de Epworth
+        if not ids: return progreso
+
+        # Consultar tests completados
         epworth_response = _supabase.from_('test_epworth').select('id').in_('id', ids).eq('estado', 'Completado').execute()
         if epworth_response.data:
             for item in epworth_response.data:
@@ -111,21 +131,26 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
                 if rut:
                     progreso[rut].append("EPWORTH")
         
-        # --- NUEVO: Consultar Test de Wonderlic ---
-        # Como Wonderlic no tiene columna 'estado', simplemente verificamos si existe un registro.
         wonderlic_response = _supabase.from_('test_wonderlic').select('id').in_('id', ids).execute()
         if wonderlic_response.data:
             for item in wonderlic_response.data:
                 rut = id_a_rut_map.get(item['id'])
                 if rut:
                     progreso[rut].append("WONDERLIC")
+        
+        disc_response = _supabase.from_('test_disc').select('id').in_('id', ids).execute()
+        if disc_response.data:
+            for item in disc_response.data:
+                rut = id_a_rut_map.get(item['id'])
+                if rut:
+                    progreso[rut].append("DISC")
 
     except Exception as e:
         st.error(f"Error al verificar el progreso de los tests: {e}")
     
     return progreso
 
-# --- Interfaz principal de la Enfermera (MODIFICADA) ---
+# --- Interfaz principal de la Enfermera ---
 def crear_interfaz_enfermera(_supabase: Client):
     sedes_enfermera = st.session_state.get("user_sedes", [])
     if not sedes_enfermera:
@@ -141,8 +166,8 @@ def crear_interfaz_enfermera(_supabase: Client):
 
     with st.spinner(f"Actualizando lista de pacientes para {sede_seleccionada}..."):
         pacientes_agendados = fetch_agendados_hoy(sede_seleccionada)
-        ruts_de_hoy = [p['rut'] for p in pacientes_agendados]
-        progreso_tests = fetch_progreso_tests(_supabase, ruts_de_hoy)
+        ruts_iniciados = fetch_iniciados_hoy(_supabase, sede_seleccionada)
+        progreso_tests = fetch_progreso_tests(_supabase, list(ruts_iniciados))
 
     if not pacientes_agendados:
         st.info("No hay pacientes con prestaciones de salud mental agendados para hoy en esta sede.")
@@ -154,23 +179,21 @@ def crear_interfaz_enfermera(_supabase: Client):
     for paciente in pacientes_agendados:
         rut = paciente['rut']
         tests_asignados = paciente['tests_asignados']
-        tests_completados = progreso_tests.get(rut, [])
-        
         num_asignados = len(tests_asignados)
-        num_completados = len(tests_completados)
-
-        if num_asignados == 0:
-            continue
-
-        if num_completados == num_asignados:
-            estado = "✅ Finalizado"
-            stats["Finalizado"] += 1
-        elif num_completados > 0:
-            estado = f"🔵 En Progreso ({num_completados}/{num_asignados})"
-            stats["En Progreso"] += 1
-        else:
+        
+        if rut not in ruts_iniciados:
             estado = "🟡 Pendiente"
             stats["Pendiente"] += 1
+        else:
+            tests_completados = progreso_tests.get(rut, [])
+            num_completados = len(tests_completados)
+            
+            if num_completados >= num_asignados:
+                estado = "✅ Finalizado"
+                stats["Finalizado"] += 1
+            else:
+                estado = f"🔵 En Progreso ({num_completados}/{num_asignados})"
+                stats["En Progreso"] += 1
         
         lista_final_pacientes.append({
             'RUT': rut,

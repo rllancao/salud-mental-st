@@ -5,6 +5,7 @@ import interfaz_psicologo
 import interfaz_enfermera
 import test_epworth 
 import test_wonderlic
+import test_disc
 import generador_pdf
 from datetime import datetime, date
 
@@ -95,7 +96,8 @@ def guardar_datos_finales(supabase_client):
     # --- Paso 2: Generar y Guardar PDF Principal ---
     try:
         wonderlic_data = st.session_state.form_data.get('test_wonderlic')
-        pdf_bytes_main = ficha_salud_mental.generar_pdf(ficha_data_original, wonderlic_data=wonderlic_data)
+        disc_data = st.session_state.form_data.get('test_disc')
+        pdf_bytes_main = ficha_salud_mental.generar_pdf(ficha_data_original, wonderlic_data=wonderlic_data, disc_data=disc_data)
         nombre_archivo_main = f"{rut_paciente}_{fecha_actual_str}_FichaIngreso.pdf"
         file_path_main = f"fichas_ingreso_SM/{nombre_archivo_main}"
         supabase_client.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes_main, path=file_path_main, file_options={"content-type": "application/pdf"})
@@ -130,6 +132,13 @@ def guardar_datos_finales(supabase_client):
             wonderlic_data_db = wonderlic_data.copy()
             wonderlic_data_db['id'] = ficha_id
             supabase_client.from_('test_wonderlic').insert(wonderlic_data_db).execute()
+            
+        # --- NUEVO: Guardar Test DISC ---
+        if disc_data:
+            # Para la base de datos, solo guardamos los resultados crudos
+            disc_data_to_save = disc_data.get('raw_results', {})
+            disc_data_to_save['id'] = ficha_id
+            supabase_client.from_('test_disc').insert(disc_data_to_save).execute()
 
     except Exception as e:
         st.warning(f"La ficha principal se guardó, pero hubo un error al guardar los datos de los tests: {e}")
@@ -152,6 +161,8 @@ def patient_flow_router(supabase_client):
                 test_epworth.crear_interfaz_epworth(supabase_client)
             elif "WONDERLIC" == test_actual:
                 test_wonderlic.crear_interfaz_wonderlic(supabase_client)
+            elif "DISC" == test_actual: # <-- NUEVO
+                test_disc.crear_interfaz_disc(supabase_client)
             else:
                 st.warning(f"El test '{test_actual}' aún no está implementado. Será omitido.")
                 if st.button("Continuar"):
