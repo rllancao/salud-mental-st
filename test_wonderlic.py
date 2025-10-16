@@ -36,7 +36,8 @@ def crear_interfaz_wonderlic(supabase: Client):
         st.session_state.wonderlic_submitted = False
 
     elapsed_time = time.time() - st.session_state.wonderlic_start_time
-    remaining_time = 50 - elapsed_time # 15 minutos = 900 segundos
+    # 15 minutos = 900 segundos
+    remaining_time = 900 - elapsed_time
     is_time_up = remaining_time <= 0
     
     # --- HTML y CSS para el temporizador GIF fijo ---
@@ -65,7 +66,6 @@ def crear_interfaz_wonderlic(supabase: Client):
             """
             st.markdown(timer_html, unsafe_allow_html=True)
     
-    # --- CAMBIO CLAVE: Se elimina `with st.form(...)` para permitir actualizaciones en cada interacción ---
     st.markdown("---")
     st.write("**Indique si comprende las instrucciones del test**")
     comprende = st.checkbox("Sí, comprendo las instrucciones.", key="comprende_wonderlic")
@@ -140,7 +140,7 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 20:** Suponga que los dos primeros enunciados son verdaderos. El último enunciado es:'Juan tiene la misma edad que Patricia' - 'Patricia es más joven que Pepe' - 'Juan es más joven que Pepe'")
     st.radio("Opciones para la pregunta 20", ["Verdadero", "Falso", "Ni similar ni contradictorio"], key="q20", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 21:** Un agente de negocios compró unos barriles por $4.000, los vendió por $5.000, ganando $50 en cada uno. ¿Cuántos barriles había comprado?")
+    st.write("**Pregunta 21:** Un agente de negocios compró unos barriles por \\$4.000, los vendió por \\$5.000, ganando \\$50 en cada uno. ¿Cuántos barriles había comprado?")
     st.radio("Opciones para la pregunta 21", ["50", "21", "20", "19"], key="q21", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 22:** Supongamos que usted ordena las siguientes palabras, de tal manera que formen una frase completa. Si es un enunciado verdadero, marque una V, pero si es falso marque una F \"Huevos – ponen – todas – las – gallinas\"")
@@ -161,7 +161,7 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 26:** Suponga que los dos primeros enunciados son verdaderos. El último de ellos es: 'Todos los cuáqueros son pacifistas' - 'Algunas de las personas de este cuarto son cuáqueros' - 'Algunas de las personas de este cuarto son pacifistas'")
     st.radio("Opciones para la pregunta 26", ["Verdadero", "Falso","Dudoso"], key="q26", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 27:** En 30 días un muchacho ahorró $100. ¿Cuál fue su ahorro promedio diario?")
+    st.write("**Pregunta 27:** En 30 días un muchacho ahorró \\$100. ¿Cuál fue su ahorro promedio diario?")
     st.radio("Opciones para la pregunta 27", ["0.31", "1", "3.33 o 3 1/3", "3"], key="q27", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 28:** INGENIOSO / INGENUO; estas palabras tienen significado:")
@@ -230,8 +230,8 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 44:** Los significados de las siguientes oraciones son: 'Nadie se arrepintió jamás de su honestidad' - 'La honestidad se elogia, pero no se paga'.")
     st.radio("Opciones para la pregunta 44", ["Similares", "Contradictorios", "Ni similares ni contradictorios"], key="q44", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 45:** Por $180 un tendero compra un cajón de naranjas de 12 docenas. Se sabe que 2 docenas se pudrirán antes que él pueda venderlas. ¿A cuánto debe vender la docena de lo que le queda para ganar 1/3 sobre el costo total?")
-    st.radio("Opciones para la pregunta 45", ["$24", "$20", "$22.50", "$25"], key="q45", label_visibility="collapsed", horizontal=True, index=None)
+    st.write("**Pregunta 45:** Por \\$180 un tendero compra un cajón de naranjas de 12 docenas. Se sabe que 2 docenas se pudrirán antes que él pueda venderlas. ¿A cuánto debe vender la docena de lo que le queda para ganar 1/3 sobre el costo total?")
+    st.radio("Opciones para la pregunta 45", ["\\$24", "\\$20", "\\$22.50", "\\$25"], key="q45", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 46:** En el siguiente grupo de palabras. ¿Cuál de ellas es diferente de las otras?")
     st.radio("Opciones para la pregunta 46", ["Colonia", "Compañera", "Pollada", "Tripulación", "Constelación"], key="q46", label_visibility="collapsed", horizontal=True, index=None)
@@ -239,8 +239,8 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 47:** Suponga que los dos primeros enunciados son verdaderos. Es el último:'Los genios son ridiculizados' - 'Yo soy ridiculizado' - 'Yo soy un genio'")
     st.radio("Opciones para la pregunta 47", ["Verdadero", "Falso", "Dudoso"], key="q47", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 48:** ¿Cuánto recibiría X adicionalmente, en comparación con Y y Z, al repartir las ganancias de $1,500 entre tres socios que han invertido respectivamente $4,500, $3,500 y $2,000, si la distribución se realiza en proporción a la cantidad invertida?")
-    st.radio("Opciones para la pregunta 48", ["$175", "$250", "$300", "$350"], key="q48", label_visibility="collapsed", horizontal=True, index=None)
+    st.write("**Pregunta 48:** ¿Cuánto recibiría X adicionalmente, en comparación con Y y Z, al repartir las ganancias de \\$1,500 entre tres socios que han invertido respectivamente \\$4,500, \\$3,500 y \\$2,000, si la distribución se realiza en proporción a la cantidad invertida?")
+    st.radio("Opciones para la pregunta 48", ["\\$175", "\\$250", "\\$300", "\\$350"], key="q48", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 49:** Cuatro de las cinco figuras pueden ser unidas para formar un triángulo. ¿Cuáles son?")
     try:
@@ -255,7 +255,6 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 50:** ¿Cuántas páginas de tamaño más pequeño deben imprimirse para un artículo de 30,000 palabras, considerando que una página grande contiene 1,200 palabras y una página pequeña contiene 1,500 palabras, y la revista tiene un límite de 22 páginas?")
     st.radio("Opciones para la pregunta 50", ["10", "12", "15", "20"], key="q50", label_visibility="collapsed", horizontal=True, index=None)
     
-    # --- CAMBIO CLAVE: Se añade el botón de envío fuera del formulario ---
     siguiente_button = st.button("Siguiente", type="primary")
 
     # --- Lógica de Envío y Actualización del Temporizador ---
@@ -263,10 +262,15 @@ def crear_interfaz_wonderlic(supabase: Client):
         if not st.session_state.get('wonderlic_submitted', False):
             st.session_state.wonderlic_submitted = True
             
+            if 'ficha_id' not in st.session_state:
+                st.error("Error crítico: No se encontró el ID de la ficha de ingreso. Por favor, vuelva a empezar.")
+                # Detener la ejecución si no hay ficha_id
+                return
+            
             if is_time_up:
                 st.warning("El tiempo se ha acabado. Se enviarán las respuestas que haya alcanzado a marcar.")
             
-            with st.spinner("Procesando respuestas..."):
+            with st.spinner("Procesando y guardando respuestas..."):
                 # --- Lógica de Corrección ---
                 resultados_correctos = {f'pregunta_{i}': 0 for i in range(1, 51)}
                 resultados_correctos['pregunta_1'] = 1 if st.session_state.get('q1') == "Diciembre" else 0
@@ -325,10 +329,10 @@ def crear_interfaz_wonderlic(supabase: Client):
                 resultados_correctos['pregunta_42'] = 1 if st.session_state.get('q42') == "3 y 22" else 0
                 resultados_correctos['pregunta_43'] = 1 if st.session_state.get('q43') == "0.33" else 0
                 resultados_correctos['pregunta_44'] = 1 if st.session_state.get('q44') == "Contradictorios" else 0
-                resultados_correctos['pregunta_45'] = 1 if st.session_state.get('q45') == "$24" else 0
+                resultados_correctos['pregunta_45'] = 1 if st.session_state.get('q45') == "\\$24" else 0
                 resultados_correctos['pregunta_46'] = 1 if st.session_state.get('q46') == "Compañera" else 0
                 resultados_correctos['pregunta_47'] = 1 if st.session_state.get('q47') == "Dudoso" else 0
-                resultados_correctos['pregunta_48'] = 1 if st.session_state.get('q48') == "$175" else 0
+                resultados_correctos['pregunta_48'] = 1 if st.session_state.get('q48') == "\\$175" else 0
                 
                 respuestas_q49 = {opc for opc in opciones_q49 if st.session_state.get(f"q49_{opc}", False)}
                 correctas_q49 = {"A", "B", "D", "E"}
@@ -336,18 +340,44 @@ def crear_interfaz_wonderlic(supabase: Client):
                 
                 resultados_correctos['pregunta_50'] = 1 if st.session_state.get('q50') == "12" else 0
                 
+                # Guardar los resultados localmente para la generación del PDF
+                if 'form_data' not in st.session_state:
+                    st.session_state.form_data = {}
                 st.session_state.form_data['test_wonderlic'] = {
                     "comprende": st.session_state.get('comprende_wonderlic', False),
                     **resultados_correctos
                 }
+
+                # Preparar datos para la base de datos
+                wonderlic_data_db = resultados_correctos.copy()
+                wonderlic_data_db['id'] = st.session_state.ficha_id
+                wonderlic_data_db['comprende'] = st.session_state.get('comprende_wonderlic', False)
+
                 
-                # Limpiar el estado del temporizador y avanzar
-                if 'wonderlic_start_time' in st.session_state: del st.session_state['wonderlic_start_time']
-                if 'wonderlic_submitted' in st.session_state: del st.session_state['wonderlic_submitted']
+                # Enviar a Supabase
+                try:
+                    response = supabase.from_('test_wonderlic').insert(wonderlic_data_db).execute()
+                    if response.data:
+                        # Limpiar el estado del temporizador y avanzar
+                        if 'wonderlic_start_time' in st.session_state: del st.session_state['wonderlic_start_time']
+                        if 'wonderlic_submitted' in st.session_state: del st.session_state['wonderlic_submitted']
+                        
+                        st.session_state.current_test_index += 1    
+                        st.rerun()
+                    else:
+                        st.error(f"Error al guardar los resultados del test Wonderlic: {response.error.message if response.error else 'Error desconocido.'}")
                 
-                st.session_state.current_test_index += 1    
-                st.rerun()
-    elif not st.session_state.get('wonderlic_submitted', False):
-        time.sleep(5) # Espera 5 segundos antes de re-ejecutar
-        st.rerun()
+                except Exception as e:
+                    st.error(f"Ocurrió una excepción al intentar guardar los resultados del test Wonderlic: {e}")
+
+    elif not st.session_state.get('wonderlic_submitted', False) and not is_time_up:
+        time.sleep(1) # Espera 1 segundo antes de re-ejecutar para actualizar el timer
+        try:
+            st.rerun()
+        except st.errors.StreamlitAPIException as e:
+            # Ignorar el error que ocurre cuando el usuario navega fuera de la página
+            if "RerunData" in str(e):
+                pass
+            else:
+                raise e
 

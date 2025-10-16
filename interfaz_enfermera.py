@@ -6,12 +6,13 @@ import json
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
+# --- Mantenemos la lista de todos los tests posibles para usar como columnas ---
 TESTS_SALUD_MENTAL = [
     "EPWORTH", "DISC", "WONDERLIC", "ALERTA", "BARRATT", 
     "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN"
 ]
 
-# --- Conexión a Base de Datos MySQL ---
+# --- Conexión a Base de Datos MySQL (sin cambios) ---
 @st.cache_resource
 def connect_to_mysql():
     try:
@@ -27,7 +28,7 @@ def connect_to_mysql():
         st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
         return None
 
-# --- Función para obtener pacientes agendados ---
+# --- Función para obtener pacientes agendados (sin cambios) ---
 @st.cache_data(ttl=300)
 def fetch_agendados_hoy(sede):
     connection = connect_to_mysql()
@@ -83,7 +84,7 @@ def fetch_agendados_hoy(sede):
         st.error(f"Error al buscar los pacientes agendados: {e}")
         return []
 
-# --- NUEVO: Función para obtener RUTs de pacientes que ya iniciaron el proceso ---
+# --- Función para obtener RUTs de pacientes que ya iniciaron (sin cambios) ---
 @st.cache_data(ttl=60)
 def fetch_iniciados_hoy(_supabase: Client, sede):
     try:
@@ -105,7 +106,7 @@ def fetch_iniciados_hoy(_supabase: Client, sede):
         st.error(f"Error al buscar las fichas iniciadas: {e}")
         return set()
 
-# --- Función para obtener el progreso de los tests ---
+# --- Función para obtener el progreso de los tests (sin cambios) ---
 @st.cache_data(ttl=60)
 def fetch_progreso_tests(_supabase: Client, ruts: list):
     progreso = {rut: [] for rut in ruts}
@@ -150,7 +151,8 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
     
     return progreso
 
-# --- Interfaz principal de la Enfermera ---
+
+# --- Interfaz principal de la Enfermera (MODIFICADA) ---
 def crear_interfaz_enfermera(_supabase: Client):
     sedes_enfermera = st.session_state.get("user_sedes", [])
     if not sedes_enfermera:
@@ -167,42 +169,74 @@ def crear_interfaz_enfermera(_supabase: Client):
     with st.spinner(f"Actualizando lista de pacientes para {sede_seleccionada}..."):
         pacientes_agendados = fetch_agendados_hoy(sede_seleccionada)
         ruts_iniciados = fetch_iniciados_hoy(_supabase, sede_seleccionada)
-        progreso_tests = fetch_progreso_tests(_supabase, list(ruts_iniciados))
+        progreso_tests = fetch_progreso_tests(_supabase, [p['rut'] for p in pacientes_agendados])
 
     if not pacientes_agendados:
         st.info("No hay pacientes con prestaciones de salud mental agendados para hoy en esta sede.")
         return
-
+    
+    # --- LÓGICA DE CONSTRUCCIÓN DE LA TABLA Y ESTADÍSTICAS ---
     lista_final_pacientes = []
     stats = {"Finalizado": 0, "En Progreso": 0, "Pendiente": 0}
 
+    columnas_base = ['RUT', 'Nombre Paciente']
+    tests_del_dia = sorted(list(set(test for pac in pacientes_agendados for test in pac['tests_asignados'])))
+    if not tests_del_dia:
+        tests_del_dia = []
+
     for paciente in pacientes_agendados:
         rut = paciente['rut']
-        tests_asignados = paciente['tests_asignados']
-        num_asignados = len(tests_asignados)
+        paciente_row = {'RUT': rut, 'Nombre Paciente': paciente['nombre_completo']}
         
-        if rut not in ruts_iniciados:
-            estado = "🟡 Pendiente"
-            stats["Pendiente"] += 1
-        else:
-            tests_completados = progreso_tests.get(rut, [])
-            num_completados = len(tests_completados)
-            
-            if num_completados >= num_asignados:
-                estado = "✅ Finalizado"
-                stats["Finalizado"] += 1
-            else:
-                estado = f"🔵 En Progreso ({num_completados}/{num_asignados})"
-                stats["En Progreso"] += 1
+        tests_asignados = set(paciente['tests_asignados'])
+        tests_completados = set(progreso_tests.get(rut, []))
         
-        lista_final_pacientes.append({
-            'RUT': rut,
-            'Nombre Paciente': paciente['nombre_completo'],
-            'Estado Evaluaciones': estado
-        })
+        proceso_iniciado = rut in ruts_iniciados
+        proceso_finalizado = tests_completados.issuperset(tests_asignados)
 
-    total_agendados = len(lista_final_pacientes)
-    
+        # Determinar estado general para las estadísticas, el filtro y la nueva columna
+        estado_general_str = ""
+        estado_general_display = ""
+
+        if not proceso_iniciado:
+            stats["Pendiente"] += 1
+            estado_general_str = "Pendientes"
+            estado_general_display = "🟡 Pendiente"
+        elif proceso_finalizado:
+            stats["Finalizado"] += 1
+            estado_general_str = "Finalizados"
+            estado_general_display = "✅ Finalizado"
+        else:
+            stats["En Progreso"] += 1
+            estado_general_str = "En Progreso"
+            estado_general_display = "🔵 En Progreso"
+        
+        paciente_row['estado_general_filtro'] = estado_general_str # Para el filtro
+        paciente_row['Estado General'] = estado_general_display # Para la tabla
+
+        # Determinar el test "En Progreso" para la tabla detallada
+        test_en_progreso = None
+        if proceso_iniciado and not proceso_finalizado:
+            for test in paciente['tests_asignados']:
+                if test not in tests_completados:
+                    test_en_progreso = test
+                    break
+
+        # Rellenar el estado para cada test en la tabla
+        for test in tests_del_dia:
+            if test not in tests_asignados:
+                paciente_row[test] = '⚪ No Aplica'
+            elif test in tests_completados:
+                paciente_row[test] = '✅ Finalizado'
+            elif test == test_en_progreso:
+                paciente_row[test] = '🔵 En Progreso'
+            else:
+                paciente_row[test] = '🟡 Pendiente'
+        
+        lista_final_pacientes.append(paciente_row)
+
+    # --- VISTA DE RESUMEN ---
+    total_agendados = len(pacientes_agendados)
     col1, col2 = st.columns([1, 1])
     with col1:
         st.subheader("Estado de Evaluaciones")
@@ -213,31 +247,37 @@ def crear_interfaz_enfermera(_supabase: Client):
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4, marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
             fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=250)
             config = {'displayModeBar': False}
-            st.plotly_chart(fig, use_container_width=True, config=config)
+            st.plotly_chart(fig, width='stretch', config=config)
 
     with col2:
         st.subheader("Resumen del Día")
         st.metric("Total Pacientes (Salud Mental)", total_agendados)
         st.metric("Procesos Finalizados", stats['Finalizado'])
-        st.metric("Procesos Pendientes", stats['Pendiente'] + stats['En Progreso'], delta_color="inverse")
+        st.metric("Procesos Pendientes/En Curso", stats['Pendiente'] + stats['En Progreso'], delta_color="inverse")
 
     st.markdown("---")
     
-    st.write("#### Filtrar Pacientes")
-    filter_option = st.radio("Seleccione una vista:", ('Todos', 'Pendientes', 'En Progreso', 'Finalizados'), horizontal=True, label_visibility="collapsed")
+    # --- VISTA DE TABLA DETALLADA Y FILTROS ---
+    st.subheader("Estado Detallado de Evaluaciones de Pacientes")
+    
+    filter_option = st.radio(
+        "Filtrar pacientes por estado general:",
+        ('Todos', 'Pendientes', 'En Progreso', 'Finalizados'),
+        horizontal=True,
+        key="filter_pacientes"
+    )
 
-    if filter_option == "Pendientes":
-        filtered_list = [p for p in lista_final_pacientes if 'Pendiente' in p['Estado Evaluaciones']]
-    elif filter_option == "En Progreso":
-        filtered_list = [p for p in lista_final_pacientes if 'En Progreso' in p['Estado Evaluaciones']]
-    elif filter_option == "Finalizados":
-        filtered_list = [p for p in lista_final_pacientes if 'Finalizado' in p['Estado Evaluaciones']]
-    else:
+    if filter_option == 'Todos':
         filtered_list = lista_final_pacientes
+    else:
+        filtered_list = [p for p in lista_final_pacientes if p.get('estado_general_filtro') == filter_option]
 
     if filtered_list:
+        # Definir el orden de las columnas para el DataFrame final
+        columnas_finales = columnas_base + tests_del_dia + ['Estado General']
         df = pd.DataFrame(filtered_list)
-        st.dataframe(df, use_container_width=True)
+        # Reordenar y mostrar solo las columnas deseadas
+        st.dataframe(df[columnas_finales], width='stretch')
     else:
-        st.info("No hay pacientes que coincidan con el filtro seleccionado.")
+        st.info(f"No hay pacientes que coincidan con el filtro '{filter_option}'.")
 

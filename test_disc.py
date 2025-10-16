@@ -34,8 +34,7 @@ GRUPOS_DISC = {
     28: {"Prudente": "C", "Pionero": "D", "Espontáneo": "I", "Colaborador": "S"},
 }
 
-# --- NUEVO: Diccionario de perfiles de personalidad ---
-# (Este es un ejemplo, deberás completarlo con los perfiles reales)
+# --- Diccionario de perfiles de personalidad (puedes completarlo o modificarlo) ---
 PERFILES_DISC = {
     "7777": "Superactivo", "7776": "Superactivo", "7775": "Superactivo", "7774": "Alentador", "7773": "Alentador", "7772": "Alentador", "7771": "Alentador",
     "7767": "Superactivo", "7766": "Superactivo", "7765": "Superactivo", "7764": "Alentador", "7763": "Alentador", "7762": "Alentador", "7761": "Alentador",
@@ -382,7 +381,7 @@ PERFILES_DISC = {
     "1117": "Objetivo", "1116": "Objetivo", "1115": "Objetivo", "1114": "Subactivo", "1113": "Subactivo", "1112": "Subactivo", "1111": "Subactivo"
 }
 
-# --- NUEVO: Diccionario con las descripciones detalladas de los perfiles ---
+# --- Diccionario con las descripciones detalladas de los perfiles (puedes completarlo o modificarlo) ---
 DESCRIPCIONES_PERFILES = {
     "Alentador": {
         "Emociones": "Acepta la agresión, tiende a aparentar dar poca importancia a la necesidad que tiene de afecto.",
@@ -390,12 +389,12 @@ DESCRIPCIONES_PERFILES = {
         "Juzga a los demás por": "La forma en que proyecta su fuerza personal, carácter y posición social.",
         "Influye en los demás mediante": "Su encanto, dirección, intimidación , uso de recompensas.",
         "Su valor para la organización": "Mueve a la gente, inicia, ordena, felicita disciplina.",
-        "Abusa de": "Su enfoque de que “el fin justifica los medios”.",
+        "Abusa de": "Su enfoque de que 'el fin justifica los medios'.",
         "Bajo presión": "Se vuelve manipulador, pendenciero, beligerante.",
         "Teme": "Ser demasiado blando, perder su posición social.",
         "Sería más eficaz si": "Fuera más genuina su sensibilidad; estuviera más dispuesto a ayudar a otros a tener éxito en su propio desarrollo personal.",
         "Observaciones Adicionales": "Las personas con patrón alentador saben con exactitud los resultados que quieren, pero no siempre los verbalizan de inmediato. Manifiestan cuáles son los resultados que quieren sólo después de que se haya creado un ambiente apropiado y la otra persona está dispuesta a aceptarlos. Por ejemplo, estas personas ofrecen amistad a quienes desean ser aceptados, más autoridad a quienes buscan poder y seguridad a quienes buscan un ambiente predecible.",
-        "Obs 1": "El alentador pude ser encantador en su trato con los demás. Es persuasivo para obtener ayuda cuando se le presentan detalles repetitivos y que consumen mucho tiempo. Sin embargo, las personas a menudo experimentan ante ellos una sensación de conflicto, al sentirse por un lado atraídos, y curiosamente al mismo tiempo distanciados. Otras pueden sentirse “utilizadas”. Aunque algunas veces el alentador inspira temor en los demás y rechaza sus decisiones, el Alentador suele ser apreciado por sus colaboradores. Esto lo consigue al usar siempre que le es posible su enorme capacidad de palabra para persuadir. El Alentador prefiere alcanzar sus objetivos no dominando a las personas sino haciendo de agente para realizar el trabajo.",
+        "Obs 1": "El alentador pude ser encantador en su trato con los demás. Es persuasivo para obtener ayuda cuando se le presentan detalles repetitivos y que consumen mucho tiempo. Sin embargo, las personas a menudo experimentan ante ellos una sensación de conflicto, al sentirse por un lado atraídos, y curiosamente al mismo tiempo distanciados. Otras pueden sentirse 'utilizadas'. Aunque algunas veces el alentador inspira temor en los demás y rechaza sus decisiones, el Alentador suele ser apreciado por sus colaboradores. Esto lo consigue al usar siempre que le es posible su enorme capacidad de palabra para persuadir. El Alentador prefiere alcanzar sus objetivos no dominando a las personas sino haciendo de agente para realizar el trabajo.",
         "Obs 2": ""
     },
     "Realizador": {
@@ -405,12 +404,12 @@ DESCRIPCIONES_PERFILES = {
         "Influye en los demás mediante": "La aceptación de responsabilidad por su propio trabajo.",
         "Su valor para la organización": "Se propone y consigue resultados en áreas clave.",
         "Abusa de": "Confianza en si mismo, absorción en el trabajo.",
-        "Bajo presión": "Se frustra e impacienta con los demás, se convierte en una persona que “lo hace todo” en vez de ser alguien que delega.",
+        "Bajo presión": "Se frustra e impacienta con los demás, se convierte en una persona que 'lo hace todo' en vez de ser alguien que delega.",
         "Teme": "A quienes tienen niveles inferiores o competitivos de trabajo, que afectan los resultados.",
-        "Sería más eficaz si": "Dejara de pensar en “esto o lo otro”, estableciera su prioridades con mayor claridad y aceptara enfoques alternativos, estuviera dispuesto a sacrificar los beneficios a corto plazo por otros a largo plazo.",
+        "Sería más eficaz si": "Dejara de pensar en 'esto o lo otro', estableciera su prioridades con mayor claridad y aceptara enfoques alternativos, estuviera dispuesto a sacrificar los beneficios a corto plazo por otros a largo plazo.",
         "Observaciones Adicionales": "La motivación del Patrón Realizador surge en gran parte de su interior y de metas personales muy profundas. Este compromiso previo con sus propias metas impide que acepte automáticamente las metas del grupo. El Realizador necesita combinar sus metas personales con las metas de la organización. Como el Realizador siempre ha ejercido control sobre los aspectos más importantes de su vida, desarrolla a menudo un fuerte sentido de la responsabilidad.",
-        "Obs 1": "El Realizador demuestra un profundo interés por su trabajo y un continuo e intenso afán por conseguir lo que se propone. Tiene una alta opinión de su trabajo y suele realizar las cosas por él mismo para asegurarse de que todo esté bien hecho. Valora el trabajo arduo y bajo presión “prefiere hacer” que delegar en otro. Cuando delega algo, suele volver ha realizarlo si no satisface sus expectativas. Su premisa dice: “si tengo éxito, el mérito me corresponde, pero si fracaso, asumo la responsabilidad”.",
-        "Obs 2": "Si el Realizador se comunica más con los demás dejaría de pensar en “esto o lo otro”, del “yo mismo lo tengo que hacer” o “quiero todo el crédito para mí”. Tal vez necesite ayuda para considerar otras propuestas y conseguir los resultados que desea. El Realizador sabe que funciona al máximo de su capacidad y espera un reconocimiento similar a su contribución, en ciertas organizaciones mediante ganancias elevadas y en otras con posiciones de mando."
+        "Obs 1": "El Realizador demuestra un profundo interés por su trabajo y un continuo e intenso afán por conseguir lo que se propone. Tiene una alta opinión de su trabajo y suele realizar las cosas por él mismo para asegurarse de que todo esté bien hecho. Valora el trabajo arduo y bajo presión 'prefiere hacer' que delegar en otro. Cuando delega algo, suele volver ha realizarlo si no satisface sus expectativas. Su premisa dice: 'si tengo éxito, el mérito me corresponde, pero si fracaso, asumo la responsabilidad'.",
+        "Obs 2": "Si el Realizador se comunica más con los demás dejaría de pensar en 'esto o lo otro', del 'yo mismo lo tengo que hacer' o 'quiero todo el crédito para mí'. Tal vez necesite ayuda para considerar otras propuestas y conseguir los resultados que desea. El Realizador sabe que funciona al máximo de su capacidad y espera un reconocimiento similar a su contribución, en ciertas organizaciones mediante ganancias elevadas y en otras con posiciones de mando."
     },
     "Perfeccionista": {
         "Emociones": "Competente para hacer bien las cosas, reservado, cauteloso.",
@@ -424,7 +423,7 @@ DESCRIPCIONES_PERFILES = {
         "Sería más eficaz si": "Fuera más flexible en su papel, fuera más independiente e interdependiente, tuviera más fe en sí mismo y si se viera a sí mismo como una persona valiosa.",
         "Observaciones Adicionales": "El Perfeccionista es metódico y preciso en su forma de pensar y trabajar, por lo que suele seguir procedimientos ordenados tanto en su vida personal como laboral. Es extremadamente concienzudo y se esmera en el trabajo detallado y preciso. El Perfeccionista desea condiciones estables y actividades fáciles de predecir, por lo que se siente cómodo en un ambiente laboral claramente definido. Desea claridad respecto a lo que se espera de él en el trabajo, de cuánto tiempo dispone y cómo se va a evaluar su trabajo.",
         "Obs 1": "El perfeccionista se puede empantanar en los detalles cuando tiene que tomar decisiones. Sabe tomar decisiones importantes, pero se le puede criticar por el tiempo que le toma reunir y analizar la información antes de decidir. Aunque le agrada conocer la opinión de sus superiores, el Perfeccionista es capaz de arriesgarse cuando cuenta con datos que puede interpretar y usar para sacar conclusiones propias.",
-        "Obs 2": "El Perfeccionista se evalúa y evalúa a los demás bajo normas precisas que aseguren resultados concretos y se adhiere a procedimientos operativos normales. Para la organización es valiosa esta atención concienzuda a las normas y calidad, sin embargo, el Perfeccionista tiende a definir su valor más por lo que hace que por lo que es como persona. Por lo tanto, suele reaccionar a los cumplidos personales con la idea de que: “¿Qué querrá esta persona?” , si aceptará un cumplido sincero por quien es, podría aumentar su confianza en sí mismo."
+        "Obs 2": "El Perfeccionista se evalúa y evalúa a los demás bajo normas precisas que aseguren resultados concretos y se adhiere a procedimientos operativos normales. Para la organización es valiosa esta atención concienzuda a las normas y calidad, sin embargo, el Perfeccionista tiende a definir su valor más por lo que hace que por lo que es como persona. Por lo tanto, suele reaccionar a los cumplidos personales con la idea de que: '¿Qué querrá esta persona?' , si aceptará un cumplido sincero por quien es, podría aumentar su confianza en sí mismo."
     },
     "Creativo": {
         "Emociones": "Acepta la agresión, puede contenerse al expresarse.",
@@ -438,7 +437,7 @@ DESCRIPCIONES_PERFILES = {
         "Sería más eficaz si": "Fuera más amable, usara más tacto al comunicarse, cooperara más con el equipo, reconociera que existen sanciones.",
         "Observaciones Adicionales": "Las personas con un Patrón Creativo muestran dos fuerzas opuestas en su comportamiento. El deseo de resultados tangibles se contrapone a un impulso de igual magnitud por la perfección. Su agresividad se templa con su sensibilidad. La rapidez de pensamiento y tiempo de reacción se ven frenados por el deseo de explorar todas las soluciones posibles antes de tomar una decisión.",
         "Obs 1": "Las personas creativas preveen de manera extraordinaria el enfoque que hay que dar a un proyecto y efectúan los cambios oportunos. En vista de que las personas con un Patrón Creativo son perfeccionistas y cuentan con una gran habilidad para planear, los cambios que efectúan suelen ser apropiados, aunque les pueda faltar atención a las relaciones interpersonales.",
-        "Obs 2": "La persona creativa desea libertad para explorar y la autoridad para examinar y verificar los resultados. Puede tomar las decisiones diarias con rapidez, pero puede ser extremadamente cauteloso al tomar decisiones de verdadera importancia. “¿Debería aceptar este ascenso?”, “¿debería mudarme a otro sitio?”. Por su necesidad de obtener resultados y perfección, la persona creativa no se preocupa mucho por las formas sociales. Puede parecer fría, ajena y brusca."
+        "Obs 2": "La persona creativa desea libertad para explorar y la autoridad para examinar y verificar los resultados. Puede tomar las decisiones diarias con rapidez, pero puede ser extremadamente cauteloso al tomar decisiones de verdadera importancia. '¿Debería aceptar este ascenso?', '¿debería mudarme a otro sitio?'. Por su necesidad de obtener resultados y perfección, la persona creativa no se preocupa mucho por las formas sociales. Puede parecer fría, ajena y brusca."
     },
     "Objetivo": {
         "Emociones": "Puede rechazar la agresión interpersonal.",
@@ -452,7 +451,7 @@ DESCRIPCIONES_PERFILES = {
         "Sería más eficaz si": "Fuera más abierto, compartiera en público su perspicacia y opiniones.",
         "Observaciones Adicionales": "La capacidad de pensamiento crítico suele estar muy desarrollada en el Objetivo. Recalca la importancia de sacar conclusiones y basar las acciones en hechos. Busca la precisión y exactitud en todo lo que hace. Sin embargo, para llevar a cabo con eficiencia su trabajo, el Objetivo suele combinar la información intuitiva con los datos que posee. Cuando duda sobre el curso a tomar, evita hacer el ridículo preparándose meticulosamente. Por ejemplo, el Objetivo perfeccionará una nueva habilidad en privado antes de usarla en alguna actividad de grupo.",
         "Obs 1": "El Objetivo prefiere trabajar con personas que , como él, prefieren mantener un ambiente laboral tranquilo. Como puede mostrarse reticente en expresar sus sentimiento, hay quienes lo consideran tímido. Se siente particularmente incómodo ante personas agresivas. A pesar de esta apariencia templada, el Objetivo tiene un fuerte necesidad de controlar el ambiente. Suele ejercer este control en forma indirecta solicitando el apego a reglas y normas.",
-        "Obs 2": "El Objetivo se preocupa por llegar a respuestas “correctas” y le puede resultar difícil tomar decisiones en situaciones ambiguas. Su tendencia a preocuparse le puede llevar a una “parálisis por análisis”. Con demasiada frecuencia, cuando comete un error, titubea en reconocerlo y se empreña en buscar información que le permita apoyar su postura."
+        "Obs 2": "El Objetivo se preocupa por llegar a respuestas 'correctas' y le puede resultar difícil tomar decisiones en situaciones ambiguas. Su tendencia a preocuparse le puede llevar a una 'parálisis por análisis'. Con demasiada frecuencia, cuando comete un error, titubea en reconocerlo y se empreña en buscar información que le permita apoyar su postura."
     },
     "Persuasivo": {
         "Emociones": "Confía en los demás es entusiasta.",
@@ -466,7 +465,7 @@ DESCRIPCIONES_PERFILES = {
         "Sería más eficaz si": "Se le asignaran tareas que le impliquen un reto; prestara más atención al servicio y detalles elementales clave para el trabajo; hiciera un análisis objetivo de la información.",
         "Observaciones Adicionales": "El persuasivo trabaja con y a través de otros. Esto es, se esfuerza por hacer negocios en forma amistosa al mismo tiempo que pugna por alcanzar sus propios objetivos. El Persuasivo, al ser franco por naturaleza y mostrar interés por las personas, se gana el respeto y confianza de diversos tipos de personas. El Persuasivo tiene la capacidad de convencer a los demás de su punto de vista, no sólo los conquista, también los retiene como clientes o amigos. Esta habilidad les es particularmente útil para obtener puestos de autoridad al venderse a sí mismos y sus ideas.",
         "Obs 1": "El trabajo con gente, las tareas que le suponen un reto y la variedad de trabajos y actividades que impliquen movilidad , proporcionan un ambiente favorable para el Persuasivo. Además, suele buscar tareas laborales que le proporcionen oportunidades de quedar bien. Como resultado de su entusiasmo natural, el persuasivo tiende a ser demasiado optimista respecto a los resultados de los proyectos y el potencial de otras personas. El Persuasivo también suele sobreestimar su capacidad de cambiar el comportamiento de los demás.",
-        "Obs 2": "Al mismo tiempo que rechaza las rutinas y reglamentos, el Persuasivo necesita que se le proporcione información analítica de manera sistemática y periódica. Cuando se le hace ver la importancia de los “pequeños detalles”, la información adecuada les ayuda a equilibrar su entusiasmo con una evaluación realista de la situación."
+        "Obs 2": "Al mismo tiempo que rechaza las rutinas y reglamentos, el Persuasivo necesita que se le proporcione información analítica de manera sistemática y periódica. Cuando se le hace ver la importancia de los 'pequeños detalles', la información adecuada les ayuda a equilibrar su entusiasmo con una evaluación realista de la situación."
     },
     "Promotor": {
         "Emociones": "Dispuesto a aceptar a los demás.",
@@ -477,23 +476,23 @@ DESCRIPCIONES_PERFILES = {
         "Abusa de": "Los elogios, optimismo.",
         "Bajo presión": "Descuidado y sentimental; actúa en forma desorganizada; no sabe cómo llevar a cabo las cosas.",
         "Teme": "Perder aceptación social y su autoestima.",
-        "Sería más eficaz si": "Tuviera más control del tiempo; fuera más objetivo; fuera más sensible a lo que significa “urgente”, controlara sus emociones; cumpliera hasta el final sus promesas, tareas.",
+        "Sería más eficaz si": "Tuviera más control del tiempo; fuera más objetivo; fuera más sensible a lo que significa 'urgente', controlara sus emociones; cumpliera hasta el final sus promesas, tareas.",
         "Observaciones Adicionales": "El promotor cuenta con una extensa red de contactos que le proporciona una base activa para realizar sus negocios. Gregario y sociable, le es fácil hacer amigos. Rara vez se opone intencionalmente a alguien. El promotor busca ambientes socialmente favorables donde pueda continuar desarrollando y conservando sus contactos. Con su excelente capacidad de palabra, promueve muy bien sus propias ideas y genera entusiasmo hacia proyectos ajenos. Gracias a su amplia esfera de contactos, el Promotor tiene acceso a las personas apropiadas cuando necesita ayuda.",
         "Obs 1": "En vista de que el promotor prefiere por naturaleza la interacción con otros y participa en actividades que implican contacto con gente, se interesa menos en la realización del trabajo. Aunque su trabajo imponga actividades solitarias, seguirá buscando situaciones que impliquen reuniones y vida social activa. Le agrada participar en reuniones, comités y conferencias.",
-        "Obs 2": "Por su optimismo natural, el Promotor tiende a sobreestimar la capacidad de los demás. Suele llegar a conclusiones favorables sin haber considerado todos los hechos. Con entrenamiento y dirección adecuados se puede ayudar al Promotor a desarrollar objetividad y a dar la importancia debida a los resultados. Planear y controlar el tiempo le puede significar un reto. Le conviene limitar el tiempo dedicado a conversar y de esta manera recordarse a sí mismo la urgencia de “concluir” y llevar a término una tarea."
+        "Obs 2": "Por su optimismo natural, el Promotor tiende a sobreestimar la capacidad de los demás. Suele llegar a conclusiones favorables sin haber considerado todos los hechos. Con entrenamiento y dirección adecuados se puede ayudar al Promotor a desarrollar objetividad y a dar la importancia debida a los resultados. Planear y controlar el tiempo le puede significar un reto. Le conviene limitar el tiempo dedicado a conversar y de esta manera recordarse a sí mismo la urgencia de 'concluir' y llevar a término una tarea."
     },
     "Consejero": {
         "Emociones": "Es fácil de abordar, afectuoso y comprensivo.",
         "Meta": "La amistad; la felicidad.",
         "Juzga a los demás por": "Su aceptación positiva; generalmente busca el lado bueno de las personas.",
-        "Influye en los demás mediante": "Las relaciones personales, al practicar la política de “puertas abiertas”.",
+        "Influye en los demás mediante": "Las relaciones personales, al practicar la política de 'puertas abiertas'.",
         "Su valor para la organización": "Estable, predecible; una amplia esfera de amistades; sabe escuchar.",
         "Abusa de": "Acercamiento indirecto, tolerancia.",
         "Bajo presión": "Se torna demasiado flexible e íntimo; confía demasiado en todos sin distinción.",
         "Teme": "Presionar a los demás; que se le acuse de hacer daño.",
         "Sería más eficaz si": "Presenta más atención a las fechas límite; tuviera más iniciativa para realizar el trabajo.",
         "Observaciones Adicionales": "El Consejero tiene el don particular de resolver los problemas de los demás. Impresiona con su afecto, empatía y comprensión. Al Consejero le es fácil encontrar lo bueno en las personas y asume una actitud optimista. El consejero prefiere tratar con la gente sobre la base de una relación íntima. Al saber escuchar, en especial a los problemas, es discreto en sus sugerencias y no trata de imponer sus ideas a los demás.",
-        "Obs 1": "El Consejero suele ser en extremo tolerante y paciente con las personas que no rinden en el trabajo. Bajo presión, se le dificulta confrontar los problemas de desempeño en forma directa. Suele ser demasiado indirecto para ordenar, exigir o disciplinar a otros. Con su actitud de que la “gente es importante”, el Consejero suele dar menos importancia al rendimiento. En ocasiones requiere ayuda para fijar y cumplir fechas límites realistas.",
+        "Obs 1": "El Consejero suele ser en extremo tolerante y paciente con las personas que no rinden en el trabajo. Bajo presión, se le dificulta confrontar los problemas de desempeño en forma directa. Suele ser demasiado indirecto para ordenar, exigir o disciplinar a otros. Con su actitud de que la 'gente es importante', el Consejero suele dar menos importancia al rendimiento. En ocasiones requiere ayuda para fijar y cumplir fechas límites realistas.",
         "Obs 2": "A menudo, el Consejero toma la crítica como una afrenta personal, pero responde en forma positiva si recibe atención y cumplidos por un trabajo bien hecho. Cuando tiene un puesto de responsabilidad, suele prestar atención a la calidad de las condiciones de trabajo y proporcionar reconocimiento adecuado a los miembros de su equipo."
     },
     "Agente": {
@@ -505,52 +504,52 @@ DESCRIPCIONES_PERFILES = {
         "Abusa de": "La amabilidad.",
         "Bajo presión": "Se vuelve persuasivo haciendo, si fuese necesario, uso de información que posee o de amistades clave.",
         "Teme": "El desacuerdo, el conflicto.",
-        "Sería más eficaz si": "Tuviera más conciencia de quién es y de lo que puede hacer; mostrara más firmeza y agresividad; dijera “no” en los momentos adecuados.",
+        "Sería más eficaz si": "Tuviera más conciencia de quién es y de lo que puede hacer; mostrara más firmeza y agresividad; dijera 'no' en los momentos adecuados.",
         "Observaciones Adicionales": "Al Agente le interesa tanto las relaciones humanas como los variados aspectos del trabajo. Gracias a su empatía y tolerancia sabe escuchar y se le conoce por su buena disposición. El Agente hace que los demás sientan que se les quiere y necesita. No hay quien tema ser rechazado por un Agente. Es más, el agente ofrece amistad y está dispuesto a ayudar.",
         "Obs 1": "En cuanto al trabajo, el Agente cuenta con un excelente potencial para la organización y eficiente ejecución. Es excelente en hacer para otros lo que ellos encuentran difícil de realizar. El Agente busca por naturaleza la armonía y cooperación en el grupo.",
-        "Obs 2": "Sin embargo, el Agente teme el conflicto y desacuerdo. Su tendencia a ayudar puede instar a otros a tolerar una situación en lugar de buscar una solución del problema. Además, la tendencia del Agente a adoptar un perfil “bajo” en lugar de aceptar una confrontación franca con personas agresivas, lo que puede ser visto como una falta de “dureza”. A pesar de todo, el Agente cuenta con un buen nivel de independencia aunque le preocupa su integración en el grupo."
+        "Obs 2": "Sin embargo, el Agente teme el conflicto y desacuerdo. Su tendencia a ayudar puede instar a otros a tolerar una situación en lugar de buscar una solución del problema. Además, la tendencia del Agente a adoptar un perfil 'bajo' en lugar de aceptar una confrontación franca con personas agresivas, lo que puede ser visto como una falta de 'dureza'. A pesar de todo, el Agente cuenta con un buen nivel de independencia aunque le preocupa su integración en el grupo."
     },
     "Evaluador": {
         "Emociones": "Un fuerte impulso por causar buena impresión.",
-        "Meta": "“Ganar” con estilo.",
+        "Meta": "'Ganar' con estilo.",
         "Juzga a los demás por": "Su capacidad de tomar iniciativa.",
         "Influye en los demás mediante": "Hacerles competir por su reconocimiento.",
         "Su valor para la organización": "Obtiene sus metas a través de los demás.",
         "Abusa de": "Su autoridad e ingenio.",
         "Bajo presión": "Se torna intranquilo; crítico; impaciente.",
-        "Teme": "“Perder”; quedar mal ante los demás.",
+        "Teme": "'Perder'; quedar mal ante los demás.",
         "Sería más eficaz si": "Llevara a cabo el seguimiento hasta el final; mostrara empatía al estar en desacuerdo; se marcara un ritmo más realista para sus actividades.",
         "Observaciones Adicionales": "El Evaluador toma las ideas creativas y las utiliza para fines prácticos. Es competitivo y usa métodos directos para conseguir resultados. Sin embargo, hay quienes consideran al Evaluador menos agresivo ya que suele mostrar consideración hacia los demás. En lugar de ordenar o mandar, el Evaluador involucra a las personas en el trabajo usando métodos persuasivos. Obtiene la cooperación de quienes le rodean al explicar la lógica de las actividades propuestas.",
         "Obs 1": "El Evaluador suele ser capaz de ayudar a los demás a visualizar los pasos necesarios para lograr resultados. Por lo general, habla de un plan de acción detallado que él mismo desarrollará para asegurar una progresión ordenada hacia los resultados. Sin embargo, en su afán de ganar, el Evaluador se puede impacientar cuando no se mantiene a los niveles establecidos o cuando se requiere mucho seguimiento.",
-        "Obs 2": "El Evaluador tiene un pensamiento bastante analítico y es hábil para expresar en palabras sus críticas. Sus palabras pueden ser bastante hirientes. El Evaluador controla mejor la situación si se relaja y disminuye su ritmo de trabajo. Un axioma que le sería útil para lograrlo es: “algunas veces se gana y otras se pierde”."
+        "Obs 2": "El Evaluador tiene un pensamiento bastante analítico y es hábil para expresar en palabras sus críticas. Sus palabras pueden ser bastante hirientes. El Evaluador controla mejor la situación si se relaja y disminuye su ritmo de trabajo. Un axioma que le sería útil para lograrlo es: 'algunas veces se gana y otras se pierde'."
     },
     "Resolutivo": {
         "Emociones": "Individualista en lo que se refiere a sus necesidades personales.",
         "Meta": "Una nueva oportunidad; un nuevo reto.",
         "Juzga a los demás por": "Su capacidad para alcanzar las normas establecidas por él mismo.",
         "Influye en los demás mediante": "Las soluciones a los problemas; al proyectar una imagen de poder.",
-        "Su valor para la organización": "Acepta la responsabilidad, no dice “no es mi culpa”; ofrece formas nuevas e innovadoras de resolver problemas.",
+        "Su valor para la organización": "Acepta la responsabilidad, no dice 'no es mi culpa'; ofrece formas nuevas e innovadoras de resolver problemas.",
         "Abusa de": "Del control que ejerce sobre los demás en su afán de alcanzar sus propios resultados.",
         "Bajo presión": "Se aparta cuando se tienen que hacer las cosas; se torna beligerante cuando ve su individualidad amenazada o se le cierran las puertas al reto.",
         "Teme": "Al aburrimiento; a la pérdida del control.",
         "Sería más eficaz si": "Mostrara más paciencia, empatía; participara y colaborara con los demás; diera más seguimiento y atención a la importancia del control de calidad.",
         "Observaciones Adicionales": "El Resolutivo suele ser una persona fuertemente individualista que busca continuamente nuevos horizontes. Como es extremadamente autosuficiente e independiente de pensamiento y acción, prefiere encontrar sus propias soluciones. Relativamente libre de la influencia restrictiva del grupo, el Resolutivo es capaz de eludir los convencionalismos y suele aportar soluciones innovadoras.",
         "Obs 1": "Aunque con bastante frecuencia tiende a ser directo y enérgico, el Resolutivo es asimismo astuto para manipular personas y situaciones. Sin embargo, cuando se requiere que el Resolutivo coopere con otros en situaciones que limitan su individualidad, el Resolutivo pude tornarse beligerante. Es sumamente persistente para conseguir los resultados que desea, y hace todo lo que está en sus manos para vencer los obstáculos que se le presentan. Además, sus expectativas respecto a los demás son altas y puede ser muy crítico cuando no se cumplen sus normas.",
-        "Obs 2": "Al Resolutivo le interesa mucho alcanzar sus propias metas, así como tener oportunidades de progreso y retos. Como su empeño se enfoca tanto en el resultado final, suele carecer de empatía y parecer indiferente a las personas. Podría decir algo como: “tómate una aspirina, yo estoy igual” o “no seas niño, ya se te pasará”."
+        "Obs 2": "Al Resolutivo le interesa mucho alcanzar sus propias metas, así como tener oportunidades de progreso y retos. Como su empeño se enfoca tanto en el resultado final, suele carecer de empatía y parecer indiferente a las personas. Podría decir algo como: 'tómate una aspirina, yo estoy igual' o 'no seas niño, ya se te pasará'."
     },
     "Profesional": {
         "Emociones": "Quiere mantenerse a la altura de los demás en cuanto a esfuerzo y desempeño técnico.",
         "Meta": "Profundo afán por el desarrollo personal.",
         "Juzga a los demás por": "Su autodisciplina; sus posiciones y ascensos.",
-        "Influye en los demás mediante": "La confianza en su habilidad para perfeccionar nuevos conocimientos; al desarrollar y seguir procedimientos y acciones “correctos”.",
+        "Influye en los demás mediante": "La confianza en su habilidad para perfeccionar nuevos conocimientos; al desarrollar y seguir procedimientos y acciones 'correctos'.",
         "Su valor para la organización": "Hábil para resolver problemas técnicos y humanos; profesionalismo en su especialidad.",
         "Abusa de": "Una atención excesiva a objetivos personales; expectativas poco realistas sobre los demás.",
         "Bajo presión": "Se cohibe; sensible a la crítica.",
-        "Teme": "Ser demasiado predecible; que no se le reconozca como “experto”.",
+        "Teme": "Ser demasiado predecible; que no se le reconozca como 'experto'.",
         "Sería más eficaz si": "Colaborara en forma genuina para beneficio general; delegara tareas importantes a las personas apropiadas.",
-        "Observaciones Adicionales": "El profesional valora la destreza en áreas especializadas. Su enorme deseo de “destacar en algo”, lo lleva a un esmerado control de su propio desempeño en el trabajo. Aunque su meta es ser “el” experto en un área determinada, el Profesional da la impresión de saber un poco de todo. Esta imagen es más marcada cuando pone en palabras el conocimiento que posee sobre diversos temas.",
+        "Observaciones Adicionales": "El profesional valora la destreza en áreas especializadas. Su enorme deseo de 'destacar en algo', lo lleva a un esmerado control de su propio desempeño en el trabajo. Aunque su meta es ser 'el' experto en un área determinada, el Profesional da la impresión de saber un poco de todo. Esta imagen es más marcada cuando pone en palabras el conocimiento que posee sobre diversos temas.",
         "Obs 1": "En su relación con otros, el Profesional suele proyectar un estilo relajado, diplomático y afable. Esta actitud puede cambiar de súbito en su área de especialización cuando se concentra demasiado en alcanzar altos niveles de rendimiento. Al valorar la autodisciplina, el Profesional evalúa a los demás sobre la base de su autodisciplina, la que mide por su rendimiento diario. Sus expectativas en relación consigo mismo y con los demás son elevadas. Suele exteriorizar su desilusión.",
-        "Obs 2": "Al mismo tiempo que su naturaleza le pide concentrarse en desarrollar una propuesta organizada del trabajo y en aumentar sus propias capacidades, El Profesional necesita asimismo ayudar a otros a perfeccionar sus talentos. Además, necesita saber apreciar mejor a quienes contribuyen en el esfuerzo del trabajo, aunque no usen lo que el Profesional considera el “método correcto”."
+        "Obs 2": "Al mismo tiempo que su naturaleza le pide concentrarse en desarrollar una propuesta organizada del trabajo y en aumentar sus propias capacidades, El Profesional necesita asimismo ayudar a otros a perfeccionar sus talentos. Además, necesita saber apreciar mejor a quienes contribuyen en el esfuerzo del trabajo, aunque no usen lo que el Profesional considera el 'método correcto'."
     },
     "Investigador": {
         "Emociones": "Desapasionado; autodisciplinado.",
@@ -562,13 +561,13 @@ DESCRIPCIONES_PERFILES = {
         "Bajo presión": "Tiende a interiorizar los conflictos; recuerda el mal que se le ha hecho.",
         "Teme": "Involucrarse con las masas; vender ideas abstractas.",
         "Sería más eficaz si": "Fuera más flexible; aceptara a los demás; si participara más con los demás.",
-        "Observaciones Adicionales": "Objetivo y analítico, el investigador, está “enclavado en la realidad”. Por lo general reservado, sigue con calma y firmeza un camino independiente hacia la meta establecida. El Investigador tiene éxito en muchas cosas, no por su versatilidad sino por la tenaz determinación de llegar hasta el final. Busca un claro propósito o meta sobre el que puede desarrollar un plan ordenado y organizar sus acciones. Una vez embarcado en un proyecto, el Investigador lucha con tenacidad por alcanzar sus objetivos. En ocasiones es necesario intervenir para que cambie de parecer. Puede ser visto por otros como terco y obstinado.",
+        "Observaciones Adicionales": "Objetivo y analítico, el investigador, está 'enclavado en la realidad'. Por lo general reservado, sigue con calma y firmeza un camino independiente hacia la meta establecida. El Investigador tiene éxito en muchas cosas, no por su versatilidad sino por la tenaz determinación de llegar hasta el final. Busca un claro propósito o meta sobre el que puede desarrollar un plan ordenado y organizar sus acciones. Una vez embarcado en un proyecto, el Investigador lucha con tenacidad por alcanzar sus objetivos. En ocasiones es necesario intervenir para que cambie de parecer. Puede ser visto por otros como terco y obstinado.",
         "Obs 1": "El investigador se desempeña de maravilla en tareas de naturaleza técnica que le impliquen un reto, donde pueda usar e interpretar información real y sacar conclusiones. Responde a la lógica más que a la emoción. Al vender o comercializar una idea, puede lograr gran éxito si su producto es concreto.",
         "Obs 2": "El Investigador prefiere trabajar solo y no se interesa en agradar a los demás. Se le puede considerar sumamente directo, brusco y sin tacto. Al valorar su propia capacidad de pensamiento, el Investigador evalúa a los demás por su objetividad y lógica. Para mejorar la efectividad de sus relaciones con las personas necesita desarrollar una mayor comprensión de los demás, incluso de sus emociones."
     },
     "Especialista": {
         "Emociones": "Moderación calculada; afán de servir, de adaptarse a los demás.",
-        "Meta": "Conservar el “status quo”, controlar el ambiente.",
+        "Meta": "Conservar el 'status quo', controlar el ambiente.",
         "Juzga a los demás por": "Las normas de amistad, después por su capacidad.",
         "Influye en los demás mediante": "Su constancia en el desempeño; por su afán de servir, de adaptarse a las necesidades de los demás.",
         "Su valor para la organización": "Planifica a corto plazo; es predecible, es congruente; mantiene un ritmo uniforme y seguro.",
@@ -576,13 +575,14 @@ DESCRIPCIONES_PERFILES = {
         "Bajo presión": "Se adapta a quienes tienen autoridad y a lo que opina el grupo.",
         "Teme": "Los cambios; la desorganización.",
         "Sería más eficaz si": "Compartiera más sus ideas; aumentara su confianza en sí mismo basándose en la retroalimentación que recibe; utilizara métodos más sencillos y directos.",
-        "Observaciones Adicionales": "El Especialista se “lleva bien” con los demás. Por su actitud moderada y controlada y por su comportamiento modesto, puede trabajar en armonía con diversos estilos de conducta. El Especialista es considerado paciente y siempre está dispuesto a ayudar a quienes considera sus amigos. De hecho, tiende a desarrollar en el trabajo una estrecha relación con un grupo relativamente reducido de compañeros.",
+        "Observaciones Adicionales": "El Especialista se 'lleva bien' con los demás. Por su actitud moderada y controlada y por su comportamiento modesto, puede trabajar en armonía con diversos estilos de conducta. El Especialista es considerado paciente y siempre está dispuesto a ayudar a quienes considera sus amigos. De hecho, tiende a desarrollar en el trabajo una estrecha relación con un grupo relativamente reducido de compañeros.",
         "Obs 1": "Se esfuerza por conservar pautas de comportamiento conocidos y predecibles. El Especialista, al ser bastante eficiente en áreas especializadas, planea su trabajo, lo enfoca de manera clara y directa y consigue una notoria constancia en su desempeño. El reconocimiento que recibe de los demás le ayuda a conservar este nivel.",
         "Obs 2": "El Especialista es lento para adaptarse a los cambios. Una preparación previa le concede el tiempo que requiere para cambiar sus procedimientos y conservar su nivel de rendimiento. El Especialista puede necesitar ayuda al inicio de un nuevo proyecto y para desarrollar métodos prácticos y sencillos para cubrir plazos establecidos. Suele dejar a un lado los proyectos terminados para posteriormente concluirlos. Un pequeño consejo: ¡tire algunas de esas carpetas viejas de su archivo!."
     },
     # Perfiles que faltaban en la lista de descripciones
     "Superactivo": {}, "Desconcertante": {}, "Subactivo": {}
 }
+
 
 # --- Funciones para evaluar los resultados ---
 def get_code_for_score(score):
@@ -661,6 +661,10 @@ def crear_interfaz_disc(supabase: Client):
         siguiente_button = st.form_submit_button("Siguiente")
 
         if siguiente_button:
+            if 'ficha_id' not in st.session_state:
+                st.error("Error crítico: No se encontró el ID de la ficha de ingreso. Por favor, vuelva a empezar.")
+                return
+
             resultados_raw = {}
             errores = []
 
@@ -675,21 +679,34 @@ def crear_interfaz_disc(supabase: Client):
                 else:
                     letra_mas = GRUPOS_DISC[i][mas_seleccion]
                     letra_menos = GRUPOS_DISC[i][menos_seleccion]
+                    # Guardamos las respuestas como un array de dos strings
                     resultados_raw[f"grupo_{i}"] = [letra_mas, letra_menos]
 
             if errores:
                 st.error("Por favor, complete o corrija su selección para los siguientes grupos: " + ", ".join(errores))
             else:
-                # --- CAMBIO CLAVE: Evaluar los resultados antes de guardar ---
-                resultados_evaluados = evaluate_disc(resultados_raw)
-                
-                if 'form_data' not in st.session_state:
-                    st.session_state.form_data = {}
-                st.session_state.form_data['test_disc'] = resultados_evaluados
-                
-                if 'current_test_index' not in st.session_state:
-                    st.session_state.current_test_index = 0
-                st.session_state.current_test_index += 1
-                st.rerun()
+                with st.spinner("Guardando respuestas..."):
+                    # 1. Guardar resultados evaluados en session_state para el PDF
+                    resultados_evaluados = evaluate_disc(resultados_raw)
+                    if 'form_data' not in st.session_state:
+                        st.session_state.form_data = {}
+                    st.session_state.form_data['test_disc'] = resultados_evaluados
 
+                    # 2. Preparar datos para Supabase (formato de respuestas brutas)
+                    disc_data_to_save = resultados_raw.copy()
+                    disc_data_to_save['id'] = st.session_state.ficha_id
+
+                    # 3. Enviar a Supabase
+                    try:
+                        response = supabase.from_('test_disc').insert(disc_data_to_save).execute()
+                        if response.data:
+                            if 'current_test_index' not in st.session_state:
+                                st.session_state.current_test_index = 0
+                            st.session_state.current_test_index += 1
+                            st.rerun()
+                        else:
+                            st.error(f"Error al guardar los resultados del test DISC: {response.error.message if response.error else 'Error desconocido.'}")
+
+                    except Exception as e:
+                        st.error(f"Ocurrió una excepción al intentar guardar los resultados del test DISC: {e}")
 
