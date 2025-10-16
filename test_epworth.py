@@ -53,16 +53,37 @@ def crear_interfaz_epworth(supabase: Client):
         siguiente_button = st.form_submit_button("Siguiente")
 
         if siguiente_button:
-            # Aquí guardaremos los datos en el session_state y avanzaremos al siguiente test
-            # (La lógica de navegación se manejará en maestro.py)
-            epworth_data = {
+            if 'ficha_id' not in st.session_state:
+                st.error("Error crítico: No se encontró el ID de la ficha de ingreso. Por favor, vuelva a empezar.")
+                return
+
+            # Recopilar los datos del formulario para uso local (generación de PDF)
+            epworth_data_local = {
                 "comprende": comprende,
-                **respuestas # Desempaqueta el diccionario de respuestas
+                **respuestas
             }
             
-            # Guardamos los datos del test en el estado de la sesión
-            st.session_state.form_data['test_epworth'] = epworth_data
+            # Guardar en session_state para la generación del PDF al final
+            if 'form_data' not in st.session_state:
+                st.session_state.form_data = {}
+            st.session_state.form_data['test_epworth'] = epworth_data_local
             
-            # Avanzamos al siguiente test en la lista
-            st.session_state.current_test_index += 1
-            st.rerun()
+            # Preparar datos para enviar a la base de datos
+            epworth_data_db = epworth_data_local.copy()
+            epworth_data_db['id'] = st.session_state.ficha_id
+            epworth_data_db['estado'] = 'Completado'
+            
+            # Enviar a Supabase
+            try:
+                with st.spinner("Guardando resultados..."):
+                    response = supabase.from_('test_epworth').insert(epworth_data_db).execute()
+                    if response.data:
+                        # Si el guardado es exitoso, avanzar al siguiente test
+                        st.session_state.current_test_index += 1
+                        st.rerun()
+                    else:
+                        st.error(f"Error al guardar los resultados del test: {response.error.message if response.error else 'Error desconocido.'}")
+            
+            except Exception as e:
+                st.error(f"Ocurrió una excepción al intentar guardar los resultados: {e}")
+
