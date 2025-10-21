@@ -5,15 +5,21 @@ import pandas as pd
 import json
 from datetime import datetime, date
 from fpdf import FPDF
+from PIL import Image
+import tempfile 
+import os       
 
 TESTS_SALUD_MENTAL = [
     "EPWORTH", "DISC", "WONDERLIC", "ALERTA", "BARRATT", 
-    "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN"
+    "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN", "EPQ-R"
 ]
 
 class PDF(FPDF):
     def header(self):
-        self.image('workmed_logo.png', x=10, y=8, w=40)
+        try:
+            self.image('workmed_logo.png', x=10, y=8, w=40)
+        except RuntimeError:
+            pass
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, 'Ficha de Ingreso Salud Mental', 0, 1, 'C')
         self.ln(10)
@@ -26,7 +32,6 @@ class PDF(FPDF):
     def create_table_section(self, data):
         self.set_font('Arial', '', 10)
         for key, value in data.items():
-            # Asegurarse que el valor no sea None para evitar errores
             display_value = str(value) if value is not None else "N/A"
             self.set_x(10)
             self.cell(0, 7, f"- {key}: {display_value}", 0, 1)
@@ -53,7 +58,7 @@ def connect_to_mysql():
         return None
 
 @st.cache_data(ttl=600)
-def fetch_patient_data(rut_paciente):
+def fetch_patient_data(_supabase_client: Client, rut_paciente):
     connection = connect_to_mysql()
     if not connection: return None
     query = "SELECT datosPersona, nombre_lab, prestacionesSalud FROM `agendaViewPrest` WHERE fecha <= CURDATE() AND fecha > DATE_SUB(CURDATE(), INTERVAL 14 DAY)"
@@ -80,21 +85,35 @@ def fetch_patient_data(rut_paciente):
                     warnings.append("Correo (formato inválido)")
                     correo = ""
                 
-                prestaciones_str = row.get('prestacionesSalud')
-                if prestaciones_str:
-                    try:
-                        lista_prestaciones_raw = json.loads(prestaciones_str)
-                        for prestacion in lista_prestaciones_raw:
-                            for test in TESTS_SALUD_MENTAL:
-                                if test in prestacion.upper() and test not in tests_filtrados:
-                                    tests_filtrados.append(test)
-                    except (json.JSONDecodeError, TypeError): pass
+                sexo = datos_persona.get('sexo', '').strip().upper()
+                prestaciones_str = row.get('prestacionesSalud','') or ""
+                
+                is_aeronautica = 'evaluacion salud mental' in prestaciones_str.lower()
+                
+                if is_aeronautica:
+                    today_str = date.today().isoformat()
+                    response = _supabase_client.from_('asignaciones_aeronautica').select('tests_asignados').eq('rut', rut_paciente).gte('created_at', f'{today_str}T00:00:00').order('created_at', desc=True).limit(1).single().execute()
+                    
+                    if response.data and response.data.get('tests_asignados'):
+                        tests_filtrados = response.data['tests_asignados']
+                    else:
+                        warnings.append("Paciente de aeronáutica pendiente de asignación de tests por parte del psicólogo.")
+                else:
+                    if prestaciones_str:
+                        try:
+                            lista_prestaciones_raw = json.loads(prestaciones_str)
+                            for prestacion in lista_prestaciones_raw:
+                                for test in TESTS_SALUD_MENTAL:
+                                    if test in prestacion.upper() and test not in tests_filtrados:
+                                        tests_filtrados.append(test)
+                        except (json.JSONDecodeError, TypeError): pass
 
                 return {
                     "data": {
                         "nombre_completo": nombre_completo, "rut": datos_persona.get('rut'), "edad": edad,
                         "telefono": telefono, "correo": correo, "empresa": datos_persona.get('nombre_contra', ''),
-                        "cargo": datos_persona.get('cargo', ''), "sucursal_workmed": row.get('nombre_lab', '')
+                        "cargo": datos_persona.get('cargo', ''), "sucursal_workmed": row.get('nombre_lab', ''),
+                        "sexo": sexo
                     },
                     "warnings": warnings, "tests": tests_filtrados
                 }
@@ -103,7 +122,7 @@ def fetch_patient_data(rut_paciente):
         st.error(f"Error al buscar los datos del paciente: {e}")
         return None
 
-def generar_pdf(form_data, wonderlic_data=None, disc_data=None):
+def generar_pdf(supabase_client: Client, form_data, wonderlic_data=None, disc_data=None, pbll_data=None, alerta_data=None):
     if not form_data: return b''
     pdf_data = form_data.copy()
     fecha_vencimiento = pdf_data.get("fecha_vencimiento_licencia")
@@ -112,7 +131,7 @@ def generar_pdf(form_data, wonderlic_data=None, disc_data=None):
     pdf = PDF()
     pdf.add_page()
     
-    personal_data = {k: pdf_data.get(k) for k in ["nombre_completo", "rut", "edad", "telefono", "correo", "empresa", "sucursal_workmed", "cargo"]}
+    personal_data = {k: pdf_data.get(k) for k in ["nombre_completo", "rut", "edad", "telefono", "correo", "empresa", "sucursal_workmed", "cargo", "sexo"]}
     academic_data = {k: pdf_data.get(k) for k in ["tipo_licencia", "fecha_vencimiento_licencia", "experiencia", "educacion"]}
     health_data = {k: pdf_data.get(k) for k in ["red_apoyo", "horas_sueño", "tratamiento", "fortaleza", "debilidad"]}
     security_data = {k: pdf_data.get(k) for k in ["elementos_proteccion", "estrategia_prev_accidente", "riesgos_trabajo", "accidentes_laborales"]}
@@ -126,7 +145,7 @@ def generar_pdf(form_data, wonderlic_data=None, disc_data=None):
         pdf.add_page()
         pdf.chapter_title("Resultados Test de Habilidad Cognitiva (Wonderlic)")
         total_score_raw = sum(v for k, v in wonderlic_data.items() if k.startswith('pregunta_'))
-        edad_paciente = personal_data.get("edad", 0)
+        edad_paciente = personal_data.get("edad", 0) or 0
         
         ajuste = 0
         if 30 <= edad_paciente <= 39: ajuste = 1
@@ -136,12 +155,11 @@ def generar_pdf(form_data, wonderlic_data=None, disc_data=None):
         elif edad_paciente > 60: ajuste = 5
         total_score = total_score_raw + ajuste
 
-        interpretacion = ""
+        interpretacion = "Excelente capacidad para sintetizar información, solucionar problemas y aprender rápidamente."
         if total_score <= 15: interpretacion = "Capacidad regular para actividades nuevas, pero exitoso en tareas rutinarias."
         elif 16 <= total_score <= 19: interpretacion = "Capaz de desarrollar actividades simples y repetitivas con efectividad."
         elif 20 <= total_score <= 24: interpretacion = "Aprende rutinas rápidamente y se desempeña bien en tareas de mediana complejidad."
         elif 25 <= total_score <= 34: interpretacion = "Muy buena capacidad de autoaprendizaje y análisis de problemas."
-        else: interpretacion = "Excelente capacidad para sintetizar información, solucionar problemas y aprender rápidamente."
 
         pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, f"Puntaje Total Obtenido: {total_score} / 50", 0, 1)
         pdf.set_font('Arial', '', 10); pdf.multi_cell(0, 7, f"Interpretación: {interpretacion}")
@@ -158,9 +176,64 @@ def generar_pdf(form_data, wonderlic_data=None, disc_data=None):
                 if value:
                     pdf.set_font('Arial', 'B', 10); pdf.multi_cell(0, 5, f"{key.replace('_', ' ').title()}:")
                     pdf.set_font('Arial', '', 10); pdf.multi_cell(0, 5, str(value)); pdf.ln(2)
-    
-    return pdf.output(dest='S').encode('latin1')
+                    
+    if alerta_data:
+        pdf.add_page()
+        pdf.chapter_title("Resultados Test de Alerta")
+        
+        # Calcular el puntaje total sumando los 1s
+        total_score = sum(alerta_data.get(f'pregunta_{i}', 0) for i in range(1, 37))
 
+        # Determinar la interpretación
+        interpretacion = "No definida"
+        if 1 <= total_score <= 7:
+            interpretacion = "Inferior"
+        elif 8 <= total_score <= 14:
+            interpretacion = "Inferior al término medio"
+        elif 15 <= total_score <= 20:
+            interpretacion = "Promedio"
+        elif 23 <= total_score <= 29:
+            interpretacion = "Superior al promedio"
+        elif 30 <= total_score <= 36:
+            interpretacion = "Superior"
+
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, f"Puntaje Total Obtenido: {total_score} / 36", 0, 1)
+        pdf.set_font('Arial', '', 10)
+        pdf.multi_cell(0, 7, f"Interpretación: {interpretacion}")
+
+    
+    if pbll_data and pbll_data.get("image_path"):
+        pdf.add_page()
+        pdf.chapter_title("Resultados Test Proyectivo PBLL (Persona Bajo la Lluvia)")
+        
+        temp_file_path = None
+        try:
+            image_path = pbll_data["image_path"]
+            res = supabase_client.storage.from_("ficha_ingreso_SM_bucket").download(path=image_path)
+            
+            # --- CORRECCIÓN DEFINITIVA: Usar un archivo temporal ---
+            file_extension = image_path.split('.')[-1]
+            
+            # Crear un archivo temporal y escribir los bytes de la imagen
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as temp_file:
+                temp_file.write(res)
+                temp_file_path = temp_file.name # Guardar la ruta del archivo temporal
+
+            # Usar la ruta del archivo temporal para incrustar la imagen
+            pdf.image(temp_file_path, x=10, y=pdf.get_y(), w=190)
+
+        except Exception as e:
+            pdf.set_font('Arial', 'I', 10)
+            pdf.set_text_color(255, 0, 0)
+            pdf.multi_cell(0, 7, f"Error al cargar la imagen del dibujo: {e}")
+        finally:
+            # Asegurarse de que el archivo temporal se elimine siempre
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+
+    return pdf.output(dest='S').encode('latin1')
+    
 def crear_interfaz_paciente(supabase: Client):
     st.title("Paso 1: Ficha de Ingreso Salud Mental")
     st.write("Por favor, ingrese su RUT para cargar sus datos y luego complete el resto del formulario.")
@@ -171,7 +244,7 @@ def crear_interfaz_paciente(supabase: Client):
     if st.button("Buscar Datos"):
         if rut_a_buscar:
             with st.spinner("Buscando información..."):
-                response = fetch_patient_data(rut_a_buscar)
+                response = fetch_patient_data(supabase, rut_a_buscar)
                 if response and response != "not_found":
                     st.session_state.datos_paciente = response.get("data", {})
                     st.session_state.lista_tests = response.get("tests", [])
@@ -190,7 +263,10 @@ def crear_interfaz_paciente(supabase: Client):
         st.header("Datos Personales")
         nombre_completo = st.text_input("Nombre Completo", value=st.session_state.datos_paciente.get("nombre_completo", ""))
         rut = st.text_input("RUT", value=st.session_state.datos_paciente.get("rut", rut_a_buscar))
-        edad = st.number_input("Edad", min_value=18, max_value=100, value=st.session_state.datos_paciente.get("edad") or 18)
+        
+        # --- CORRECCIÓN DE EDAD ---
+        edad = st.number_input("Edad", min_value=17, max_value=100, value=st.session_state.datos_paciente.get("edad") or 17)
+        
         telefono = st.text_input("Teléfono", value=st.session_state.datos_paciente.get("telefono", ""))
         correo = st.text_input("Correo", value=st.session_state.datos_paciente.get("correo", ""))
         empresa = st.text_input("Empresa", value=st.session_state.datos_paciente.get("empresa", ""))
@@ -232,6 +308,7 @@ def crear_interfaz_paciente(supabase: Client):
                 form_data_to_save = {
                     "nombre_completo": nombre_completo, "rut": rut, "edad": edad, "telefono": telefono,
                     "correo": correo, "empresa": empresa, "sucursal_workmed": sucursal_workmed, "cargo": cargo,
+                    "sexo": st.session_state.datos_paciente.get("sexo", "NO ESPECIFICADO"),
                     "tipo_licencia": ", ".join(tipo_licencia), "fecha_vencimiento_licencia": str(fecha_vencimiento_licencia) if fecha_vencimiento_licencia else None, 
                     "experiencia": experiencia, "educacion": educacion, "red_apoyo": red_apoyo,
                     "horas_sueño": horas_sueño, "tratamiento": tratamiento, "fortaleza": fortaleza,
@@ -249,7 +326,6 @@ def crear_interfaz_paciente(supabase: Client):
                             st.session_state.form_data['ficha_ingreso'] = form_data_to_save
                             st.session_state.step = "test"
                             
-                            # --- NUEVO: Añadir ficha_id a la URL para persistencia ---
                             st.query_params["ficha_id"] = ficha_id
                             st.rerun()
                         else:
