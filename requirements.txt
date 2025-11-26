@@ -4,3 +4,4 @@ streamlit
 PyMySQL
 plotly
 fpdf2
+pillow

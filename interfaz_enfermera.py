@@ -3,16 +3,15 @@ import pandas as pd
 from supabase import Client
 import pymysql
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import plotly.graph_objects as go
 
-# --- Mantenemos la lista de todos los tests posibles para usar como columnas ---
 TESTS_SALUD_MENTAL = [
     "EPWORTH", "DISC", "WONDERLIC", "ALERTA", "BARRATT", 
-    "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN"
+    "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN", "EPQ-R"
 ]
 
-# --- Conexión a Base de Datos MySQL (sin cambios) ---
+# --- Conexión a Base de Datos MySQL ---
 @st.cache_resource
 def connect_to_mysql():
     try:
@@ -28,9 +27,9 @@ def connect_to_mysql():
         st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
         return None
 
-# --- Función para obtener pacientes agendados (sin cambios) ---
+# --- Función para obtener pacientes agendados (MODIFICADA) ---
 @st.cache_data(ttl=300)
-def fetch_agendados_hoy(sede):
+def fetch_agendados_hoy(sede, _supabase: Client):
     connection = connect_to_mysql()
     if not connection:
         return []
@@ -39,6 +38,7 @@ def fetch_agendados_hoy(sede):
     if "SANTIAGO" in sede:
         sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
 
+    # --- CORRECCIÓN: La consulta ahora incluye a todos los que tienen prestaciones de salud mental ---
     query = """
     SELECT datosPersona, prestacionesSalud
     FROM `agendaViewPrest`
@@ -52,39 +52,68 @@ def fetch_agendados_hoy(sede):
             results = cursor.fetchall()
         
         pacientes_agendados = []
+        ruts_aeronautica = []
+
         for row in results:
             datos_persona = json.loads(row[0])
-            prestaciones_str = row[1]
-            tests_asignados = []
-            if prestaciones_str:
-                try:
-                    lista_prestaciones_raw = json.loads(prestaciones_str)
-                    for prestacion in lista_prestaciones_raw:
-                        for test_valido in TESTS_SALUD_MENTAL:
-                            if test_valido in prestacion.upper():
-                                if test_valido not in tests_asignados:
-                                    tests_asignados.append(test_valido)
-                except (json.JSONDecodeError, TypeError):
-                    continue
+            prestaciones_str = row[1] or ""
             
-            if tests_asignados:
+            # --- CORRECCIÓN: Se identifica a aeronáutica por la prestación ---
+            is_aeronautica = 'evaluacion salud mental' in prestaciones_str.lower()
+            
+            tests_asignados_mysql = []
+            try:
+                lista_prestaciones_raw = json.loads(prestaciones_str)
+                for prestacion in lista_prestaciones_raw:
+                    for test_valido in TESTS_SALUD_MENTAL:
+                        if test_valido in prestacion.upper() and test_valido not in tests_asignados_mysql:
+                            tests_asignados_mysql.append(test_valido)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            
+            # Solo agregar al listado si es de aeronáutica o tiene tests asignados en MySQL
+            if is_aeronautica or tests_asignados_mysql:
                 nombre_completo = " ".join(filter(None, [
                     datos_persona.get('nombre', '').strip(),
                     datos_persona.get('nombre2', '').strip(),
                     datos_persona.get('apellidoP', '').strip(),
                     datos_persona.get('apellidoM', '').strip()
                 ]))
-                pacientes_agendados.append({
+                
+                paciente = {
                     "rut": datos_persona.get('rut'),
                     "nombre_completo": nombre_completo,
-                    "tests_asignados": tests_asignados
-                })
-        return pacientes_agendados
+                    "tests_asignados": tests_asignados_mysql,
+                    "is_aeronautica": is_aeronautica
+                }
+                pacientes_agendados.append(paciente)
+                
+                if is_aeronautica:
+                    ruts_aeronautica.append(paciente["rut"])
+
+        # Buscar asignaciones manuales para pacientes de aeronáutica
+        if ruts_aeronautica:
+            today_str = date.today().isoformat()
+            response = _supabase.from_('asignaciones_aeronautica').select('rut, tests_asignados').in_('rut', ruts_aeronautica).gte('created_at', f'{today_str}T00:00:00').execute()
+            
+            if response.data:
+                asignaciones_manuales = {item['rut']: item['tests_asignados'] for item in response.data}
+                
+                for paciente in pacientes_agendados:
+                    if paciente["is_aeronautica"] and paciente["rut"] in asignaciones_manuales:
+                        # Para aeronáutica, los tests manuales reemplazan a los de la agenda
+                        paciente["tests_asignados"] = asignaciones_manuales[paciente["rut"]]
+        
+        # Filtrar pacientes que no sean de aeronáutica y no tengan tests
+        pacientes_final = [p for p in pacientes_agendados if p["is_aeronautica"] or p["tests_asignados"]]
+
+        return pacientes_final
+
     except Exception as e:
         st.error(f"Error al buscar los pacientes agendados: {e}")
         return []
 
-# --- Función para obtener RUTs de pacientes que ya iniciaron (sin cambios) ---
+# --- Función para obtener RUTs de pacientes que ya iniciaron el proceso ---
 @st.cache_data(ttl=60)
 def fetch_iniciados_hoy(_supabase: Client, sede):
     try:
@@ -106,7 +135,7 @@ def fetch_iniciados_hoy(_supabase: Client, sede):
         st.error(f"Error al buscar las fichas iniciadas: {e}")
         return set()
 
-# --- Función para obtener el progreso de los tests (sin cambios) ---
+# --- Función para obtener el progreso de los tests ---
 @st.cache_data(ttl=60)
 def fetch_progreso_tests(_supabase: Client, ruts: list):
     progreso = {rut: [] for rut in ruts}
@@ -118,41 +147,29 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
         if not fichas_response.data:
             return progreso
         
-        rut_a_id_map = {item['rut']: item['id'] for item in fichas_response.data}
         id_a_rut_map = {item['id']: item['rut'] for item in fichas_response.data}
-        ids = list(rut_a_id_map.values())
+        ids = list(id_a_rut_map.keys())
 
         if not ids: return progreso
 
-        # Consultar tests completados
-        epworth_response = _supabase.from_('test_epworth').select('id').in_('id', ids).eq('estado', 'Completado').execute()
-        if epworth_response.data:
-            for item in epworth_response.data:
-                rut = id_a_rut_map.get(item['id'])
-                if rut:
-                    progreso[rut].append("EPWORTH")
-        
-        wonderlic_response = _supabase.from_('test_wonderlic').select('id').in_('id', ids).execute()
-        if wonderlic_response.data:
-            for item in wonderlic_response.data:
-                rut = id_a_rut_map.get(item['id'])
-                if rut:
-                    progreso[rut].append("WONDERLIC")
-        
-        disc_response = _supabase.from_('test_disc').select('id').in_('id', ids).execute()
-        if disc_response.data:
-            for item in disc_response.data:
-                rut = id_a_rut_map.get(item['id'])
-                if rut:
-                    progreso[rut].append("DISC")
+        # Consultar todos los tests completados
+        tablas_tests = ["test_epworth", "test_wonderlic", "test_disc", "test_epq_r", "test_pbll", "test_alerta"]
+        nombres_tests = ["EPWORTH", "WONDERLIC", "DISC", "EPQ-R", "PBLL", "ALERTA"]
+
+        for tabla, nombre_test in zip(tablas_tests, nombres_tests):
+            response = _supabase.from_(tabla).select('id').in_('id', ids).execute()
+            if response.data:
+                for item in response.data:
+                    rut = id_a_rut_map.get(item['id'])
+                    if rut:
+                        progreso[rut].append(nombre_test)
 
     except Exception as e:
         st.error(f"Error al verificar el progreso de los tests: {e}")
     
     return progreso
 
-
-# --- Interfaz principal de la Enfermera (MODIFICADA) ---
+# --- Interfaz principal de la Enfermera ---
 def crear_interfaz_enfermera(_supabase: Client):
     sedes_enfermera = st.session_state.get("user_sedes", [])
     if not sedes_enfermera:
@@ -167,76 +184,62 @@ def crear_interfaz_enfermera(_supabase: Client):
     st.markdown("---")
 
     with st.spinner(f"Actualizando lista de pacientes para {sede_seleccionada}..."):
-        pacientes_agendados = fetch_agendados_hoy(sede_seleccionada)
+        # Se pasa el cliente de supabase a la función
+        pacientes_agendados = fetch_agendados_hoy(sede_seleccionada, _supabase)
         ruts_iniciados = fetch_iniciados_hoy(_supabase, sede_seleccionada)
         progreso_tests = fetch_progreso_tests(_supabase, [p['rut'] for p in pacientes_agendados])
 
     if not pacientes_agendados:
         st.info("No hay pacientes con prestaciones de salud mental agendados para hoy en esta sede.")
         return
-    
-    # --- LÓGICA DE CONSTRUCCIÓN DE LA TABLA Y ESTADÍSTICAS ---
-    lista_final_pacientes = []
+
+    # Preparar datos para la tabla y las estadísticas
     stats = {"Finalizado": 0, "En Progreso": 0, "Pendiente": 0}
-
-    columnas_base = ['RUT', 'Nombre Paciente']
-    tests_del_dia = sorted(list(set(test for pac in pacientes_agendados for test in pac['tests_asignados'])))
-    if not tests_del_dia:
-        tests_del_dia = []
-
+    all_assigned_tests = sorted(list(set(test for p in pacientes_agendados for test in p['tests_asignados'])))
+    
+    lista_final_pacientes = []
     for paciente in pacientes_agendados:
         rut = paciente['rut']
-        paciente_row = {'RUT': rut, 'Nombre Paciente': paciente['nombre_completo']}
-        
         tests_asignados = set(paciente['tests_asignados'])
+        
+        row_data = {'RUT': rut, 'Nombre Paciente': paciente['nombre_completo']}
+        
         tests_completados = set(progreso_tests.get(rut, []))
+        num_asignados = len(tests_asignados)
+        num_completados = len(tests_completados.intersection(tests_asignados))
         
-        proceso_iniciado = rut in ruts_iniciados
-        proceso_finalizado = tests_completados.issuperset(tests_asignados)
-
-        # Determinar estado general para las estadísticas, el filtro y la nueva columna
-        estado_general_str = ""
-        estado_general_display = ""
-
-        if not proceso_iniciado:
+        estado_general = ""
+        if rut not in ruts_iniciados:
+            estado_general = "🟡 Pendiente"
             stats["Pendiente"] += 1
-            estado_general_str = "Pendientes"
-            estado_general_display = "🟡 Pendiente"
-        elif proceso_finalizado:
-            stats["Finalizado"] += 1
-            estado_general_str = "Finalizados"
-            estado_general_display = "✅ Finalizado"
         else:
-            stats["En Progreso"] += 1
-            estado_general_str = "En Progreso"
-            estado_general_display = "🔵 En Progreso"
-        
-        paciente_row['estado_general_filtro'] = estado_general_str # Para el filtro
-        paciente_row['Estado General'] = estado_general_display # Para la tabla
-
-        # Determinar el test "En Progreso" para la tabla detallada
-        test_en_progreso = None
-        if proceso_iniciado and not proceso_finalizado:
-            for test in paciente['tests_asignados']:
-                if test not in tests_completados:
-                    test_en_progreso = test
-                    break
-
-        # Rellenar el estado para cada test en la tabla
-        for test in tests_del_dia:
-            if test not in tests_asignados:
-                paciente_row[test] = '⚪ No Aplica'
-            elif test in tests_completados:
-                paciente_row[test] = '✅ Finalizado'
-            elif test == test_en_progreso:
-                paciente_row[test] = '🔵 En Progreso'
+            if num_completados >= num_asignados and num_asignados > 0:
+                estado_general = "✅ Finalizado"
+                stats["Finalizado"] += 1
             else:
-                paciente_row[test] = '🟡 Pendiente'
+                estado_general = "🔵 En Progreso"
+                stats["En Progreso"] += 1
         
-        lista_final_pacientes.append(paciente_row)
+        row_data['Estado General'] = estado_general
+        
+        # Rellenar estado por test
+        primer_pendiente_encontrado = False
+        for test in all_assigned_tests:
+            if test not in tests_asignados:
+                row_data[test] = '⚪ No Aplica'
+            elif test in tests_completados:
+                row_data[test] = '✅ Finalizado'
+            else:
+                if estado_general == "🔵 En Progreso" and not primer_pendiente_encontrado:
+                    row_data[test] = '🔵 En Progreso'
+                    primer_pendiente_encontrado = True
+                else:
+                    row_data[test] = '🟡 Pendiente'
+        
+        lista_final_pacientes.append(row_data)
 
-    # --- VISTA DE RESUMEN ---
-    total_agendados = len(pacientes_agendados)
+    total_agendados = len(lista_final_pacientes)
+    
     col1, col2 = st.columns([1, 1])
     with col1:
         st.subheader("Estado de Evaluaciones")
@@ -247,37 +250,45 @@ def crear_interfaz_enfermera(_supabase: Client):
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4, marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
             fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=250)
             config = {'displayModeBar': False}
-            st.plotly_chart(fig, width='stretch', config=config)
+            st.plotly_chart(fig, use_container_width=True, config=config)
 
     with col2:
         st.subheader("Resumen del Día")
         st.metric("Total Pacientes (Salud Mental)", total_agendados)
         st.metric("Procesos Finalizados", stats['Finalizado'])
-        st.metric("Procesos Pendientes/En Curso", stats['Pendiente'] + stats['En Progreso'], delta_color="inverse")
+        st.metric("Procesos Pendientes", stats['Pendiente'] + stats['En Progreso'], delta_color="inverse")
 
     st.markdown("---")
     
-    # --- VISTA DE TABLA DETALLADA Y FILTROS ---
-    st.subheader("Estado Detallado de Evaluaciones de Pacientes")
+    # --- MEJORA DE DISEÑO: Se alinea el botón de actualizar con los filtros ---
+    col_filtros, col_actualizar = st.columns([3, 1])
+    with col_filtros:
+        st.write("#### Filtrar Pacientes")
+        filter_option = st.radio(
+            "Seleccione una vista:", 
+            ('Todos', 'Pendientes', 'En Progreso', 'Finalizados'), 
+            horizontal=True, 
+            label_visibility="collapsed"
+        )
     
-    filter_option = st.radio(
-        "Filtrar pacientes por estado general:",
-        ('Todos', 'Pendientes', 'En Progreso', 'Finalizados'),
-        horizontal=True,
-        key="filter_pacientes"
-    )
+    with col_actualizar:
+        st.write("") # Spacer para alinear verticalmente el botón
+        if st.button("🔄️ Actualizar Tabla"):
+            st.cache_data.clear()
+            st.rerun()
 
-    if filter_option == 'Todos':
-        filtered_list = lista_final_pacientes
+    if filter_option == "Pendientes":
+        filtered_list = [p for p in lista_final_pacientes if 'Pendiente' in p['Estado General']]
+    elif filter_option == "En Progreso":
+        filtered_list = [p for p in lista_final_pacientes if 'En Progreso' in p['Estado General']]
+    elif filter_option == "Finalizados":
+        filtered_list = [p for p in lista_final_pacientes if 'Finalizado' in p['Estado General']]
     else:
-        filtered_list = [p for p in lista_final_pacientes if p.get('estado_general_filtro') == filter_option]
+        filtered_list = lista_final_pacientes
 
     if filtered_list:
-        # Definir el orden de las columnas para el DataFrame final
-        columnas_finales = columnas_base + tests_del_dia + ['Estado General']
         df = pd.DataFrame(filtered_list)
-        # Reordenar y mostrar solo las columnas deseadas
-        st.dataframe(df[columnas_finales], width='stretch')
+        st.dataframe(df, use_container_width=True)
     else:
-        st.info(f"No hay pacientes que coincidan con el filtro '{filter_option}'.")
+        st.info("No hay pacientes que coincidan con el filtro seleccionado.")
 
