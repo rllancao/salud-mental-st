@@ -616,11 +616,11 @@ def evaluate_disc(resultados_raw):
     profile_details = DESCRIPCIONES_PERFILES.get(profile_name, {})
     
     return {
-        "raw_results": resultados_raw,
+        "raw_results": resultados_raw, # <-- Se necesita para el PDF
         "net_scores": {"D": net_d, "I": net_i, "S": net_s, "C": net_c},
         "profile_code": final_code,
-        "profile_name": profile_name,
-        "profile_details": profile_details
+        "profile_name": profile_name, # <-- Se guardará en DB
+        "profile_details": profile_details # <-- Se necesita para el PDF
     }
 
 def crear_interfaz_disc(supabase: Client):
@@ -640,8 +640,16 @@ def crear_interfaz_disc(supabase: Client):
             st.markdown(f"---")
             st.write(f"**Grupo {i}**")
             
-            cualidades = list(GRUPOS_DISC[i].keys())
+            # Asegurarse que GRUPOS_DISC esté definido
+            if not GRUPOS_DISC:
+                st.error("Error: Diccionario GRUPOS_DISC no definido.")
+                return
             
+            cualidades = list(GRUPOS_DISC.get(i, {}).keys())
+            if not cualidades:
+                st.error(f"Error: No se encontraron cualidades para el Grupo {i}.")
+                continue # Saltar a la siguiente iteración si faltan datos
+                
             respuestas[f"grupo_{i}_mas"] = st.radio(
                 f"**Más:** me identifico con:",
                 options=cualidades,
@@ -671,32 +679,41 @@ def crear_interfaz_disc(supabase: Client):
             for i in range(1, 29):
                 mas_seleccion = respuestas.get(f"grupo_{i}_mas")
                 menos_seleccion = respuestas.get(f"grupo_{i}_menos")
+                grupo_actual = GRUPOS_DISC.get(i, {})
 
                 if not mas_seleccion or not menos_seleccion:
                     errores.append(f"Grupo {i}")
                 elif mas_seleccion == menos_seleccion:
                     errores.append(f"Grupo {i} (la selección 'Más' y 'Menos' no puede ser la misma)")
+                elif not grupo_actual:
+                     errores.append(f"Grupo {i} (datos de cualidades no encontrados)")
                 else:
-                    letra_mas = GRUPOS_DISC[i][mas_seleccion]
-                    letra_menos = GRUPOS_DISC[i][menos_seleccion]
-                    # Guardamos las respuestas como un array de dos strings
-                    resultados_raw[f"grupo_{i}"] = [letra_mas, letra_menos]
+                    letra_mas = grupo_actual.get(mas_seleccion)
+                    letra_menos = grupo_actual.get(menos_seleccion)
+                    if letra_mas is None or letra_menos is None:
+                         errores.append(f"Grupo {i} (error interno al obtener letras)")
+                    else:
+                      # Guardamos las respuestas como un array de dos strings
+                      resultados_raw[f"grupo_{i}"] = [letra_mas, letra_menos]
 
             if errores:
                 st.error("Por favor, complete o corrija su selección para los siguientes grupos: " + ", ".join(errores))
             else:
                 with st.spinner("Guardando respuestas..."):
-                    # 1. Guardar resultados evaluados en session_state para el PDF
+                    # 1. Calcular resultados
                     resultados_evaluados = evaluate_disc(resultados_raw)
+                    
+                    # 2. Guardar resultados evaluados en session_state para el PDF
                     if 'form_data' not in st.session_state:
                         st.session_state.form_data = {}
                     st.session_state.form_data['test_disc'] = resultados_evaluados
 
-                    # 2. Preparar datos para Supabase (formato de respuestas brutas)
-                    disc_data_to_save = resultados_raw.copy()
+                    # 3. Preparar datos para Supabase (formato de respuestas brutas + perfil)
+                    disc_data_to_save = resultados_raw.copy() # <-- Se guardan las respuestas grupo_X: [letra, letra]
                     disc_data_to_save['id'] = st.session_state.ficha_id
+                    disc_data_to_save['perfil_personalidad'] = resultados_evaluados['profile_name'] # <-- Se añade el perfil calculado
 
-                    # 3. Enviar a Supabase
+                    # 4. Enviar a Supabase
                     try:
                         response = supabase.from_('test_disc').insert(disc_data_to_save).execute()
                         if response.data:
@@ -709,4 +726,6 @@ def crear_interfaz_disc(supabase: Client):
 
                     except Exception as e:
                         st.error(f"Ocurrió una excepción al intentar guardar los resultados del test DISC: {e}")
+
+
 

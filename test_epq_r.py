@@ -3,9 +3,7 @@ from supabase import Client
 
 # --- LISTA COMPLETA DE PREGUNTAS EPQ-R ---
 PREGUNTAS_EPQ_R = [
-    # Pregunta 1 (ya existente)
     "¿Se detiene a pensar las cosas antes de hacerlas?",
-    # Preguntas 2 a 83 de tu lista
     "¿Su estado de animo sufre altibajos con frecuencia?",
     "¿Es una persona conversadora?",
     "¿Se siente a veces desdichado sin motivo?",
@@ -103,8 +101,54 @@ PERSONALITY_MAP = {
     5: 'S', 7: 'S', 10: 'S', 11: 'S', 14: 'S', 21: 'S', 30: 'S', 33: 'S', 36: 'S', 38: 'S', 43: 'S', 45: 'S', 56: 'S', 60: 'S', 65: 'S', 68: 'S', 79: 'S', 82: 'S'
 }
 
+PUNTAJE_T_VARONES = {
+    'E': {0:1, 1:1, 2:1, 3:2, 4:4, 5:5, 6:10, 7:10, 8:15, 9:20, 10:25, 11:30, 12:40, 13:45, 14:55, 15:65, 16:75, 17:85, 18:90, 19:98, 20:98, 21:98, 22:98, 23:98},
+    'M': {0:1, 1:3, 2:4, 3:5, 4:10, 5:15, 6:20, 7:20, 8:25, 9:30, 10:35, 11:45, 12:50, 13:55, 14:65, 15:70, 16:75, 17:80, 18:85, 19:90, 20:95, 21:97, 22:99, 23:99},
+    'D': {0:2, 1:5, 2:10, 3:20, 4:30, 5:40, 6:55, 7:65, 8:75, 9:80, 10:85, 11:90, 12:95, 13:95, 14:97, 15:99, 16:99, 17:99, 18:99, 19:99, 20:99, 21:99, 22:99, 23:99},
+    'S': {0:1, 1:2, 2:4, 3:10, 4:15, 5:20, 6:30, 7:40, 8:50, 9:65, 10:70, 11:80, 12:85, 13:90, 14:90, 15:95, 16:97, 17:99, 18:99, 19:99}
+}
 
-def crear_interfaz_epq_r(supabase: Client):
+PUNTAJE_T_MUJERES = {
+    'E': {0:1, 1:1, 2:1, 3:2, 4:4, 5:5, 6:5, 7:10, 8:15, 9:20, 10:25, 11:30, 12:40, 13:50, 14:60, 15:70, 16:80, 17:90, 18:95, 19:99, 20:99, 21:99},
+    'M': {0:1, 1:1, 2:2, 3:3, 4:4, 5:5, 6:10, 7:10, 8:15, 9:15, 10:20, 11:25, 12:35, 13:40, 14:45, 15:50, 16:55, 17:65, 18:70, 19:80, 20:85, 21:90, 22:96, 23:99},
+    'D': {0:3, 1:10, 2:15, 3:25, 4:40, 5:50, 6:60, 7:75, 8:80, 9:85, 10:90, 11:95, 12:97, 13:98, 14:99, 15:99, 16:99, 17:99, 18:99},
+    'S': {0:1, 1:1, 2:3, 3:5, 4:10, 5:15, 6:25, 7:35, 8:45, 9:55, 10:65, 11:70, 12:80, 13:85, 14:90, 15:95, 16:97, 17:99, 18:99}
+}
+
+# --- Función para calcular niveles EPQ-R ---
+def calcular_epq_r_niveles(respuestas_usuario, sexo_paciente):
+    tabla_puntaje = PUNTAJE_T_VARONES if sexo_paciente == 'MASCULINO' else PUNTAJE_T_MUJERES
+    conteos = {'E': 0, 'M': 0, 'D': 0, 'S': 0}
+    
+    for i in range(1, 84):
+        num_pregunta = i
+        respuesta = respuestas_usuario.get(f"pregunta_{num_pregunta}")
+        if respuesta == "Sí":
+            letra = PERSONALITY_MAP.get(num_pregunta)
+            if letra in conteos:
+                conteos[letra] += 1
+
+    puntajes_t = {
+        'E': tabla_puntaje['E'].get(conteos['E'], 0),
+        'M': tabla_puntaje['M'].get(conteos['M'], 0),
+        'D': tabla_puntaje['D'].get(conteos['D'], 0),
+        'S': tabla_puntaje['S'].get(conteos['S'], 0)
+    }
+
+    niveles = {}
+    for letra, nombre in [('S', 'sinceridad'), ('E', 'extraversion'), ('M', 'emotividad'), ('D', 'dureza')]:
+        pt = puntajes_t[letra]
+        nivel = "Muy Alto"
+        if pt <= 35: nivel = "Muy Poca"
+        elif 36 <= pt <= 45: nivel = "Poca"
+        elif 46 <= pt <= 55: nivel = "Moderado"
+        elif 56 <= pt <= 65: nivel = "Bastante"
+        niveles[f"nivel_{nombre}"] = nivel
+        
+    return niveles, conteos # Devuelve niveles y conteos para el PDF
+
+
+def crear_interfaz_epq_r(supabase: Client, sexo_paciente: str):
     st.components.v1.html("<script>window.top.scrollTo(0, 0);</script>", height=0)
     st.title("Test de Personalidad EPQ-R")
     st.markdown("---")
@@ -120,14 +164,13 @@ def crear_interfaz_epq_r(supabase: Client):
         comprende = st.checkbox("Sí, comprendo las instrucciones.", key="comprende_epq_r")
         st.markdown("---")
         
-        respuestas = {}
+        respuestas_usuario_raw = {} # Guardará "Sí" o "No"
         
         # --- BUCLE CON PREGUNTAS REALES ---
         for i, pregunta_texto in enumerate(PREGUNTAS_EPQ_R):
             num_pregunta = i + 1
             st.write(f"**{num_pregunta}.- {pregunta_texto}**")
-            # El valor ("Sí" o "No") se almacena en el diccionario 'respuestas'
-            respuestas[f"pregunta_{num_pregunta}"] = st.radio(
+            respuestas_usuario_raw[f"pregunta_{num_pregunta}"] = st.radio(
                 f"Respuesta {num_pregunta}", 
                 ["Sí", "No"], 
                 key=f"q_{num_pregunta}", 
@@ -145,42 +188,49 @@ def crear_interfaz_epq_r(supabase: Client):
                 st.error("Error crítico: No se encontró el ID de la ficha de ingreso. Por favor, vuelva a empezar.")
                 return
 
-            # Verificar que todas las preguntas hayan sido respondidas
-            errores = [f"Pregunta {i+1}" for i, _ in enumerate(PREGUNTAS_EPQ_R) if respuestas.get(f"pregunta_{i+1}") is None]
+            errores = [f"Pregunta {i+1}" for i, _ in enumerate(PREGUNTAS_EPQ_R) if respuestas_usuario_raw.get(f"pregunta_{i+1}") is None]
             
             if errores:
                 st.error("Por favor, responda todas las preguntas. Faltan las siguientes: " + ", ".join(errores))
             else:
                 with st.spinner("Guardando resultados..."):
                     
-                    # --- NUEVA LÓGICA: Transformar respuestas para la base de datos ---
-                    processed_respuestas = {}
-                    for key, answer in respuestas.items():
+                    # 1. Calcular niveles y conteos
+                    if not sexo_paciente:
+                         st.error("Error: No se pudo determinar el sexo del paciente para calcular los resultados.")
+                         return 
+                    niveles_calculados, conteos_calculados = calcular_epq_r_niveles(respuestas_usuario_raw, sexo_paciente)
+
+                    # 2. Transformar respuestas para la base de datos (letra/None)
+                    processed_respuestas_db = {}
+                    for key, answer in respuestas_usuario_raw.items():
                         num_pregunta = int(key.split('_')[1])
                         if answer == "Sí":
-                            # Si la respuesta es "Sí", se busca la letra correspondiente
                             letra = PERSONALITY_MAP.get(num_pregunta)
-                            processed_respuestas[key] = letra
+                            processed_respuestas_db[key] = letra
                         else:
-                            # Si la respuesta es "No", se envía un valor nulo
-                            processed_respuestas[key] = None
+                            processed_respuestas_db[key] = None
 
-                    # Datos a guardar en la base de datos (con letras o nulos)
+                    # 3. Preparar datos para Supabase (incluyendo niveles)
                     epq_r_data_to_save = {
                         "id": st.session_state.ficha_id,
                         "comprende": comprende,
-                        **processed_respuestas
+                        **processed_respuestas_db, 
+                        **niveles_calculados 
                     }
                     
                     try:
+                        # 4. Enviar a Supabase
                         response = supabase.from_('test_epq_r').insert(epq_r_data_to_save).execute()
                         if response.data:
-                            # Guardar las respuestas originales ("Sí"/"No") para la generación del PDF
+                            # 5. Guardar datos para el PDF en session_state
                             if 'form_data' not in st.session_state:
                                 st.session_state.form_data = {}
                             st.session_state.form_data['test_epq_r'] = {
                                 "comprende": comprende,
-                                **respuestas
+                                **respuestas_usuario_raw, # Guardar Sí/No original
+                                **niveles_calculados, 
+                                "conteos": conteos_calculados 
                             }
                             st.session_state.current_test_index += 1
                             st.rerun()

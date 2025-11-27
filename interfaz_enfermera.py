@@ -153,8 +153,8 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
         if not ids: return progreso
 
         # Consultar todos los tests completados
-        tablas_tests = ["test_epworth", "test_wonderlic", "test_disc", "test_epq_r", "test_pbll", "test_alerta"]
-        nombres_tests = ["EPWORTH", "WONDERLIC", "DISC", "EPQ-R", "PBLL", "ALERTA"]
+        tablas_tests = ["test_epworth", "test_wonderlic", "test_disc", "test_epq_r", "test_pbll", "test_alerta", "test_barratt", "test_kostick", "test_psqi", "test_western", "test_d48", "test_16pf"]
+        nombres_tests = ["EPWORTH", "WONDERLIC", "DISC", "EPQ-R", "PBLL", "ALERTA", "BARRATT", "KOSTICK", "PSQI", "WESTERN", "D-48", "16 PF"]
 
         for tabla, nombre_test in zip(tablas_tests, nombres_tests):
             response = _supabase.from_(tabla).select('id').in_('id', ids).execute()
@@ -250,7 +250,7 @@ def crear_interfaz_enfermera(_supabase: Client):
             fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.4, marker_colors=colors, textinfo='value', hoverinfo='label+percent')])
             fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=250)
             config = {'displayModeBar': False}
-            st.plotly_chart(fig, use_container_width=True, config=config)
+            st.plotly_chart(fig, width='stretch', config=config)
 
     with col2:
         st.subheader("Resumen del Día")
@@ -288,7 +288,7 @@ def crear_interfaz_enfermera(_supabase: Client):
 
     if filtered_list:
         df = pd.DataFrame(filtered_list)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width='stretch')
     else:
         st.info("No hay pacientes que coincidan con el filtro seleccionado.")
 

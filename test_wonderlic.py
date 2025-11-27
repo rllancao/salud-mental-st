@@ -12,6 +12,30 @@ def get_image_as_base64(path):
     except FileNotFoundError:
         st.warning(f"Advertencia: No se encontró el archivo del temporizador '{path}'. No se mostrará el GIF.")
         return None
+    
+# --- Función para calcular resultados de Wonderlic ---
+def calcular_wonderlic(respuestas_correctas, edad_paciente):
+    total_score_raw = sum(respuestas_correctas.values())
+    ajuste = 0
+    # Asegurarse que edad_paciente sea un número antes de comparar
+    edad_paciente_num = 0
+    if isinstance(edad_paciente, (int, float)):
+        edad_paciente_num = edad_paciente
+        
+    if 30 <= edad_paciente_num <= 39: ajuste = 1
+    elif 40 <= edad_paciente_num <= 49: ajuste = 2
+    elif 50 <= edad_paciente_num <= 54: ajuste = 3
+    elif 55 <= edad_paciente_num <= 60: ajuste = 4
+    elif edad_paciente_num > 60: ajuste = 5
+    puntaje_total = total_score_raw + ajuste
+
+    interpretacion = "Excelente capacidad para sintetizar información, solucionar problemas y aprender rápidamente."
+    if puntaje_total <= 15: interpretacion = "Capacidad regular para actividades nuevas, pero exitoso en tareas rutinarias."
+    elif 16 <= puntaje_total <= 19: interpretacion = "Capaz de desarrollar actividades simples y repetitivas con efectividad."
+    elif 20 <= puntaje_total <= 24: interpretacion = "Aprende rutinas rápidamente y se desempeña bien en tareas de mediana complejidad."
+    elif 25 <= puntaje_total <= 34: interpretacion = "Muy buena capacidad de autoaprendizaje y análisis de problemas."
+    
+    return puntaje_total, interpretacion
 
 # --- Interfaz del Test Wonderlic ---
 def crear_interfaz_wonderlic(supabase: Client):
@@ -30,17 +54,14 @@ def crear_interfaz_wonderlic(supabase: Client):
             lo que pudo sólo marque enviar. \n \
             Tiene un máximo de 15 minutos para completar el test. \n **(No debe usar calculadora)**")
 
-    # --- Lógica del Temporizador (Backend) ---
     if 'wonderlic_start_time' not in st.session_state:
         st.session_state.wonderlic_start_time = time.time()
         st.session_state.wonderlic_submitted = False
 
     elapsed_time = time.time() - st.session_state.wonderlic_start_time
-    # 15 minutos = 900 segundos
     remaining_time = 900 - elapsed_time
     is_time_up = remaining_time <= 0
     
-    # --- HTML y CSS para el temporizador GIF fijo ---
     if not st.session_state.get('wonderlic_submitted', False):
         gif_base64 = get_image_as_base64("15-minute.gif")
         if gif_base64:
@@ -72,7 +93,6 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.markdown("---")
 
     # --- PREGUNTAS DEL TEST ---
-    
     st.write("**Pregunta 1:** El último mes del año es:")
     st.radio("Opciones para la pregunta 1", ["Enero", "Marzo", "Julio", "Diciembre", "Octubre"], key="q1", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
@@ -92,13 +112,11 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.radio("Opciones para la pregunta 6", ["Raro", "Habitual", "Regular", "Constante", "Simple"], key="q6", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 7:** ¿Qué figura se puede formar con las dos figuras que aparecen en paréntesis?")
-    try:
-        st.image("triangulo.png", width=800)
-    except Exception:
-        st.warning("Imagen de ejemplo no encontrada. Asegúrate de que 'triangulo.png' esté en la carpeta del proyecto.")
+    try: st.image("triangulo.png", width=800)
+    except Exception: st.warning("Imagen 'triangulo.png' no encontrada.")
     st.radio("Opciones para la pregunta 7", ["A", "B", "C", "D", "E"], key="q7", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 8:** Fíjese en la siguiente progresión de números. ¿Qué número debe seguir?               8 -  4 - 2 - 1 -  ½ -  ¼  ")
+    st.write("**Pregunta 8:** Fíjese en la siguiente progresión de números. ¿Qué número debe seguir? 8 - 4 - 2 - 1 - ½ - ¼")
     st.radio("Opciones para la pregunta 8", ["2", "3", "1/8", "1/9"], key="q8", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 9:** CLIENTE / CONSUMIDOR son palabras que tienen significado:")
@@ -124,9 +142,8 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.markdown("---")
     st.write("**Pregunta 16:** Seleccione los dos números que suman 15.")
     opciones_q16 = ["84721 - 84721", "9210651 - 9210561", "14201201 - 1410210", "96101101 - 961011161", "88884444 - 88884444"]
-    cols = st.columns(len(opciones_q16))
-    for i, opcion in enumerate(opciones_q16):
-        cols[i].checkbox(str(opcion), key=f"q16_{opcion}")
+    cols_16 = st.columns(len(opciones_q16))
+    for i, opcion in enumerate(opciones_q16): cols_16[i].checkbox(str(opcion), key=f"q16_{opcion}")
     st.markdown("---")
     st.write("**Pregunta 17:** Supongamos que usted ordena las siguientes palabras de tal manera que forman un enunciado verdadero; luego marque la última letra de la última palabra como la respuesta a este problema. \"Una – verbo – oración – un – tiene - siempre\".")
     st.radio("Opciones para la pregunta 17", ["E", "O", "Siempre"], key="q17", label_visibility="collapsed", horizontal=True, index=None)
@@ -148,9 +165,8 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.markdown("---")
     st.write("**Pregunta 23:** Dos de los siguientes refranes tienen el mismo significado. ¿Cuáles son?")
     opciones_q23 = ["a) Dime con quién andas y te diré quién eres", "b) Hijo de tigre sale pintado", "c) Perro que ladra no muerde", "d) En casa de herrero, cuchillo de palo", "e) De tal palo, tal astilla"]
-    cols = st.columns(len(opciones_q23))
-    for i, opcion in enumerate(opciones_q23):
-        cols[i].checkbox(str(opcion), key=f"q23_{opcion}")
+    cols_23 = st.columns(len(opciones_q23))
+    for i, opcion in enumerate(opciones_q23): cols_23[i].checkbox(str(opcion), key=f"q23_{opcion}")
     st.markdown("---")
     st.write("**Pregunta 24:** Un reloj se atrasó un minuto y 18 segundos en 39 días. ¿Cuántos segundos se atrasó en cada día?")
     st.radio("Opciones para la pregunta 24", ["1", "5","2","4"], key="q24", label_visibility="collapsed", horizontal=True, index=None)
@@ -173,10 +189,10 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 30:** Un recipiente rectangular, completamente lleno, contiene 800 pies cúbicos de granos. Si el recipiente tiene 8 pies de ancho y 10 pies de largo. ¿Cuál es la altura del recipiente?")
     st.radio("Opciones para la pregunta 30", ["10", "11", "19", "20"], key="q30", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 31:** Uno de los números de la siguiente serie, no tiene relación con los demás. Identifique el número que no concuerda con la serie y marque la opción con el número correcto :  ½ - ¼ -  1/6  - 1/8  - 1/9 - 1/12")
+    st.write("**Pregunta 31:** Uno de los números de la siguiente serie, no tiene relación con los demás. Identifique el número que no concuerda con la serie y marque la opción con el número correcto : ½ - ¼ - 1/6 - 1/8 - 1/9 - 1/12")
     st.radio("Opciones para la pregunta 31", ["1/9", "1/6", "1/5"], key="q31", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 32:** Conteste esta pregunta SI o NO.  ¿Significa A.C. ¿Antes de Cristo?")
+    st.write("**Pregunta 32:** Conteste esta pregunta SI o NO. ¿Significa A.C. ¿Antes de Cristo?")
     st.radio("Opciones para la pregunta 32", ["Sí", "No"], key="q32", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 33:** Coser / Cocer; estas palabras tienen significado:")
@@ -191,37 +207,30 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.write("**Pregunta 36:** Nuestro equipo de baseball perdió 9 juegos esta temporada, lo que representa 1/8 del total de partidos jugados. ¿Cuántos partidos jugaron esta temporada?")
     st.radio("Opciones para la pregunta 36", ["72", "24", "34"], key="q36", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
-    st.write("**Pregunta 37:** ¿Cuál es el siguiente número de esta serie? : 1  - 0.5 - 0.25 - 0.125")
+    st.write("**Pregunta 37:** ¿Cuál es el siguiente número de esta serie? : 1 - 0.5 - 0.25 - 0.125")
     st.radio("Opciones para la pregunta 37", ["0.0625", "0.05", "0.6"], key="q37", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 38:** Esta figura geométrica puede ser dividida en dos partes por una línea recta, y éstas pueden unirse de manera que formen un cuadrado perfecto. Marque los números por donde trazaría la línea recta.")
-    try:
-        st.image("trazos.png", width=600)
-    except Exception:
-        st.warning("Imagen no encontrada.")
+    try: st.image("trazos.png", width=600)
+    except Exception: st.warning("Imagen 'trazos.png' no encontrada.")
     st.radio("Opciones para la pregunta 38", ["4 y 10", "6 y 9", "3 y 10"], key="q38", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 39:** Los significados de las siguientes oraciones son: 'Una escoba nueva limpia bien' - 'Los zapatos viejos son más cómodos'.")
     st.radio("Opciones para la pregunta 39", ["Similares", "Contradictorios", "Ni similares ni contradictorios"], key="q39", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 40:** ¿Cuántos de los cinco pares de nombres escritos abajo son idénticos entre sí?.")
-    try:
-        st.image("nombres.png", width=400)
-    except Exception:
-        st.warning("Imagen no encontrada.")
+    try: st.image("nombres.png", width=400)
+    except Exception: st.warning("Imagen 'nombres.png' no encontrada.")
     st.radio("Opciones para la pregunta 40", ["1", "2", "3", "4", "5"], key="q40", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 41:** Dos de los siguientes refranes tienen significados similares. ¿Cuáles son?")
     opciones_q41 = ["a) El que está en el lodo querrá meter al otro", "b) Más vale tarde que nunca", "c) Con la vara que midas serás medido", "d) Mal de muchos, consuelo de tontos", "e) Perro que ladra no muerde"]
-    cols = st.columns(len(opciones_q41))
-    for i, opcion in enumerate(opciones_q41):
-        cols[i].checkbox(str(opcion), key=f"q41_{opcion}")
+    cols_41 = st.columns(len(opciones_q41))
+    for i, opcion in enumerate(opciones_q41): cols_41[i].checkbox(str(opcion), key=f"q41_{opcion}")
     st.markdown("---")
     st.write("**Pregunta 42:** Esta figura geométrica puede ser dividida en dos partes por una línea recta y éstas se pueden unir de cierta manera, para formar un cuadrado perfecto. Marque los números por donde trazaría la línea recta.")
-    try:
-        st.image("trazos2.png", width=600)
-    except Exception:
-        st.warning("Imagen no encontrada.")
+    try: st.image("trazos2.png", width=600)
+    except Exception: st.warning("Imagen 'trazos2.png' no encontrada.")
     st.radio("Opciones para la pregunta 42", ["7 y 17", "2 y 23", "3 y 22", "5 y 7"], key="q42", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 43:** ¿Cuáles de los números en el siguiente grupo representa la cantidad más pequeña?")
@@ -243,141 +252,136 @@ def crear_interfaz_wonderlic(supabase: Client):
     st.radio("Opciones para la pregunta 48", ["\\$175", "\\$250", "\\$300", "\\$350"], key="q48", label_visibility="collapsed", horizontal=True, index=None)
     st.markdown("---")
     st.write("**Pregunta 49:** Cuatro de las cinco figuras pueden ser unidas para formar un triángulo. ¿Cuáles son?")
-    try:
-        st.image("formas.png", width=800)
-    except Exception:
-        st.warning("Imagen no encontrada.")
+    try: st.image("formas.png", width=800)
+    except Exception: st.warning("Imagen 'formas.png' no encontrada.")
     opciones_q49 = ["A", "B", "C", "D", "E"]
-    cols = st.columns(len(opciones_q49))
-    for i, opcion in enumerate(opciones_q49):
-        cols[i].checkbox(str(opcion), key=f"q49_{opcion}")
+    cols_49 = st.columns(len(opciones_q49))
+    for i, opcion in enumerate(opciones_q49): cols_49[i].checkbox(str(opcion), key=f"q49_{opcion}")
     st.markdown("---")
     st.write("**Pregunta 50:** ¿Cuántas páginas de tamaño más pequeño deben imprimirse para un artículo de 30,000 palabras, considerando que una página grande contiene 1,200 palabras y una página pequeña contiene 1,500 palabras, y la revista tiene un límite de 22 páginas?")
     st.radio("Opciones para la pregunta 50", ["10", "12", "15", "20"], key="q50", label_visibility="collapsed", horizontal=True, index=None)
     
     siguiente_button = st.button("Siguiente", type="primary")
 
-    # --- Lógica de Envío y Actualización del Temporizador ---
     if siguiente_button or is_time_up:
         if not st.session_state.get('wonderlic_submitted', False):
             st.session_state.wonderlic_submitted = True
             
             if 'ficha_id' not in st.session_state:
-                st.error("Error crítico: No se encontró el ID de la ficha de ingreso. Por favor, vuelva a empezar.")
-                # Detener la ejecución si no hay ficha_id
+                st.error("Error crítico: No se encontró el ID de la ficha de ingreso.")
                 return
             
+            if 'datos_paciente' not in st.session_state or 'edad' not in st.session_state.datos_paciente:
+                 st.error("Error crítico: No se encontraron los datos del paciente (edad).")
+                 return
+            edad_paciente = st.session_state.datos_paciente.get('edad') or 0 
+
             if is_time_up:
-                st.warning("El tiempo se ha acabado. Se enviarán las respuestas que haya alcanzado a marcar.")
+                st.warning("El tiempo se ha acabado. Se enviarán las respuestas.")
             
             with st.spinner("Procesando y guardando respuestas..."):
-                # --- Lógica de Corrección ---
-                resultados_correctos = {f'pregunta_{i}': 0 for i in range(1, 51)}
-                resultados_correctos['pregunta_1'] = 1 if st.session_state.get('q1') == "Diciembre" else 0
-                resultados_correctos['pregunta_2'] = 1 if st.session_state.get('q2') == "Soltar" else 0
-                resultados_correctos['pregunta_3'] = 1 if st.session_state.get('q3') == "Miércoles" else 0
-                resultados_correctos['pregunta_4'] = 1 if st.session_state.get('q4') == "No" else 0
-                resultados_correctos['pregunta_5'] = 1 if st.session_state.get('q5') == "Participar" else 0
-                resultados_correctos['pregunta_6'] = 1 if st.session_state.get('q6') == "Raro" else 0
-                resultados_correctos['pregunta_7'] = 1 if st.session_state.get('q7') == "C" else 0
-                resultados_correctos['pregunta_8'] = 1 if st.session_state.get('q8') == "1/8" else 0
-                resultados_correctos['pregunta_9'] = 1 if st.session_state.get('q9') == "Similar" else 0
-                resultados_correctos['pregunta_10'] = 1 if st.session_state.get('q10') == "Nariz" else 0
-                resultados_correctos['pregunta_11'] = 1 if st.session_state.get('q11') == "Primavera" else 0
-                resultados_correctos['pregunta_12'] = 1 if st.session_state.get('q12') == "6000" else 0
-                resultados_correctos['pregunta_13'] = 1 if st.session_state.get('q13') == "Verdadero" else 0
-                resultados_correctos['pregunta_14'] = 1 if st.session_state.get('q14') == "Cercano" else 0
-                resultados_correctos['pregunta_15'] = 1 if st.session_state.get('q15') == "60" else 0
+                # Lógica de Corrección
+                resultados_correctas = {f'pregunta_{i}': 0 for i in range(1, 51)}
+                resultados_correctas['pregunta_1'] = 1 if st.session_state.get('q1') == "Diciembre" else 0
+                resultados_correctas['pregunta_2'] = 1 if st.session_state.get('q2') == "Soltar" else 0
+                resultados_correctas['pregunta_3'] = 1 if st.session_state.get('q3') == "Miércoles" else 0
+                resultados_correctas['pregunta_4'] = 1 if st.session_state.get('q4') == "No" else 0
+                resultados_correctas['pregunta_5'] = 1 if st.session_state.get('q5') == "Participar" else 0
+                resultados_correctas['pregunta_6'] = 1 if st.session_state.get('q6') == "Raro" else 0
+                resultados_correctas['pregunta_7'] = 1 if st.session_state.get('q7') == "C" else 0
+                resultados_correctas['pregunta_8'] = 1 if st.session_state.get('q8') == "1/8" else 0
+                resultados_correctas['pregunta_9'] = 1 if st.session_state.get('q9') == "Similar" else 0
+                resultados_correctas['pregunta_10'] = 1 if st.session_state.get('q10') == "Nariz" else 0
+                resultados_correctas['pregunta_11'] = 1 if st.session_state.get('q11') == "Primavera" else 0
+                resultados_correctas['pregunta_12'] = 1 if st.session_state.get('q12') == "6000" else 0
+                resultados_correctas['pregunta_13'] = 1 if st.session_state.get('q13') == "Verdadero" else 0
+                resultados_correctas['pregunta_14'] = 1 if st.session_state.get('q14') == "Cercano" else 0
+                resultados_correctas['pregunta_15'] = 1 if st.session_state.get('q15') == "60" else 0
                 
-                respuestas_q16 = {opc for opc in opciones_q16 if st.session_state.get(f"q16_{opc}", False)}
-                correctas_q16 = {"84721 - 84721", "88884444 - 88884444"}
-                resultados_correctos['pregunta_16'] = 1 if respuestas_q16 == correctas_q16 else 0
+                respuestas_q16_set = {opc for opc in opciones_q16 if st.session_state.get(f"q16_{opc}", False)}
+                correctas_q16_set = {"84721 - 84721", "88884444 - 88884444"}
+                resultados_correctas['pregunta_16'] = 1 if respuestas_q16_set == correctas_q16_set else 0
 
-                resultados_correctos['pregunta_17'] = 1 if st.session_state.get('q17') == "O" else 0
-                resultados_correctos['pregunta_18'] = 1 if st.session_state.get('q18') == "13" else 0
-                resultados_correctos['pregunta_19'] = 1 if st.session_state.get('q19') == "Ni similar ni contradictorio" else 0
-                resultados_correctos['pregunta_20'] = 1 if st.session_state.get('q20') == "Verdadero" else 0
-                resultados_correctos['pregunta_21'] = 1 if st.session_state.get('q21') == "20" else 0
-                resultados_correctos['pregunta_22'] = 1 if st.session_state.get('q22') == "F" else 0
+                resultados_correctas['pregunta_17'] = 1 if st.session_state.get('q17') == "O" else 0
+                resultados_correctas['pregunta_18'] = 1 if st.session_state.get('q18') == "13" else 0
+                resultados_correctas['pregunta_19'] = 1 if st.session_state.get('q19') == "Ni similar ni contradictorio" else 0
+                resultados_correctas['pregunta_20'] = 1 if st.session_state.get('q20') == "Verdadero" else 0
+                resultados_correctas['pregunta_21'] = 1 if st.session_state.get('q21') == "20" else 0
+                resultados_correctas['pregunta_22'] = 1 if st.session_state.get('q22') == "F" else 0
                 
-                respuestas_q23 = {opc for opc in opciones_q23 if st.session_state.get(f"q23_{opc}", False)}
-                correctas_q23 = {"b) Hijo de tigre sale pintado", "e) De tal palo, tal astilla"}
-                resultados_correctos['pregunta_23'] = 1 if respuestas_q23 == correctas_q23 else 0
+                respuestas_q23_set = {opc for opc in opciones_q23 if st.session_state.get(f"q23_{opc}", False)}
+                correctas_q23_set = {"b) Hijo de tigre sale pintado", "e) De tal palo, tal astilla"}
+                resultados_correctas['pregunta_23'] = 1 if respuestas_q23_set == correctas_q23_set else 0
 
-                resultados_correctos['pregunta_24'] = 1 if st.session_state.get('q24') == "2" else 0
-                resultados_correctos['pregunta_25'] = 1 if st.session_state.get('q25') == "Ni similar ni contradictorio" else 0
-                resultados_correctos['pregunta_26'] = 1 if st.session_state.get('q26') == "Verdadero" else 0
-                resultados_correctos['pregunta_27'] = 1 if st.session_state.get('q27') == "3.33 o 3 1/3" else 0
-                resultados_correctos['pregunta_28'] = 1 if st.session_state.get('q28') == "Contradictorio" else 0
-                resultados_correctos['pregunta_29'] = 1 if st.session_state.get('q29') == "6" else 0
-                resultados_correctos['pregunta_30'] = 1 if st.session_state.get('q30') == "10" else 0
-                resultados_correctos['pregunta_31'] = 1 if st.session_state.get('q31') == "1/9" else 0
-                resultados_correctos['pregunta_32'] = 1 if st.session_state.get('q32') == "Sí" else 0
-                resultados_correctos['pregunta_33'] = 1 if st.session_state.get('q33') == "Ni similar ni contradictorio" else 0
-                resultados_correctos['pregunta_34'] = 1 if st.session_state.get('q34') == "18" else 0
-                resultados_correctos['pregunta_35'] = 1 if st.session_state.get('q35') == "1/4" else 0
-                resultados_correctos['pregunta_36'] = 1 if st.session_state.get('q36') == "72" else 0
-                resultados_correctos['pregunta_37'] = 1 if st.session_state.get('q37') == "0.0625" else 0
-                resultados_correctos['pregunta_38'] = 1 if st.session_state.get('q38') == "6 y 9" else 0
-                resultados_correctos['pregunta_39'] = 1 if st.session_state.get('q39') == "Contradictorios" else 0
-                resultados_correctos['pregunta_40'] = 1 if st.session_state.get('q40') == "3" else 0
+                resultados_correctas['pregunta_24'] = 1 if st.session_state.get('q24') == "2" else 0
+                resultados_correctas['pregunta_25'] = 1 if st.session_state.get('q25') == "Ni similar ni contradictorio" else 0
+                resultados_correctas['pregunta_26'] = 1 if st.session_state.get('q26') == "Verdadero" else 0
+                resultados_correctas['pregunta_27'] = 1 if st.session_state.get('q27') == "3.33 o 3 1/3" else 0
+                resultados_correctas['pregunta_28'] = 1 if st.session_state.get('q28') == "Contradictorio" else 0
+                resultados_correctas['pregunta_29'] = 1 if st.session_state.get('q29') == "6" else 0
+                resultados_correctas['pregunta_30'] = 1 if st.session_state.get('q30') == "10" else 0
+                resultados_correctas['pregunta_31'] = 1 if st.session_state.get('q31') == "1/9" else 0
+                resultados_correctas['pregunta_32'] = 1 if st.session_state.get('q32') == "Sí" else 0
+                resultados_correctas['pregunta_33'] = 1 if st.session_state.get('q33') == "Ni similar ni contradictorio" else 0
+                resultados_correctas['pregunta_34'] = 1 if st.session_state.get('q34') == "18" else 0
+                resultados_correctas['pregunta_35'] = 1 if st.session_state.get('q35') == "1/4" else 0
+                resultados_correctas['pregunta_36'] = 1 if st.session_state.get('q36') == "72" else 0
+                resultados_correctas['pregunta_37'] = 1 if st.session_state.get('q37') == "0.0625" else 0
+                resultados_correctas['pregunta_38'] = 1 if st.session_state.get('q38') == "6 y 9" else 0
+                resultados_correctas['pregunta_39'] = 1 if st.session_state.get('q39') == "Contradictorios" else 0
+                resultados_correctas['pregunta_40'] = 1 if st.session_state.get('q40') == "3" else 0
                 
-                respuestas_q41 = {opc for opc in opciones_q41 if st.session_state.get(f"q41_{opc}", False)}
-                correctas_q41 = {"a) El que está en el lodo querrá meter al otro", "d) Mal de muchos, consuelo de tontos"}
-                resultados_correctos['pregunta_41'] = 1 if respuestas_q41 == correctas_q41 else 0
+                respuestas_q41_set = {opc for opc in opciones_q41 if st.session_state.get(f"q41_{opc}", False)}
+                correctas_q41_set = {"a) El que está en el lodo querrá meter al otro", "d) Mal de muchos, consuelo de tontos"}
+                resultados_correctas['pregunta_41'] = 1 if respuestas_q41_set == correctas_q41_set else 0
 
-                resultados_correctos['pregunta_42'] = 1 if st.session_state.get('q42') == "3 y 22" else 0
-                resultados_correctos['pregunta_43'] = 1 if st.session_state.get('q43') == "0.33" else 0
-                resultados_correctos['pregunta_44'] = 1 if st.session_state.get('q44') == "Contradictorios" else 0
-                resultados_correctos['pregunta_45'] = 1 if st.session_state.get('q45') == "\\$24" else 0
-                resultados_correctos['pregunta_46'] = 1 if st.session_state.get('q46') == "Compañera" else 0
-                resultados_correctos['pregunta_47'] = 1 if st.session_state.get('q47') == "Dudoso" else 0
-                resultados_correctos['pregunta_48'] = 1 if st.session_state.get('q48') == "\\$175" else 0
+                resultados_correctas['pregunta_42'] = 1 if st.session_state.get('q42') == "3 y 22" else 0
+                resultados_correctas['pregunta_43'] = 1 if st.session_state.get('q43') == "0.33" else 0
+                resultados_correctas['pregunta_44'] = 1 if st.session_state.get('q44') == "Contradictorios" else 0
+                resultados_correctas['pregunta_45'] = 1 if st.session_state.get('q45') == "\\$24" else 0
+                resultados_correctas['pregunta_46'] = 1 if st.session_state.get('q46') == "Compañera" else 0
+                resultados_correctas['pregunta_47'] = 1 if st.session_state.get('q47') == "Dudoso" else 0
+                resultados_correctas['pregunta_48'] = 1 if st.session_state.get('q48') == "\\$175" else 0
                 
-                respuestas_q49 = {opc for opc in opciones_q49 if st.session_state.get(f"q49_{opc}", False)}
-                correctas_q49 = {"A", "B", "D", "E"}
-                resultados_correctos['pregunta_49'] = 1 if respuestas_q49 == correctas_q49 else 0
+                respuestas_q49_set = {opc for opc in opciones_q49 if st.session_state.get(f"q49_{opc}", False)}
+                correctas_q49_set = {"A", "B", "D", "E"}
+                resultados_correctas['pregunta_49'] = 1 if respuestas_q49_set == correctas_q49_set else 0
                 
-                resultados_correctos['pregunta_50'] = 1 if st.session_state.get('q50') == "12" else 0
+                resultados_correctas['pregunta_50'] = 1 if st.session_state.get('q50') == "12" else 0
                 
-                # Guardar los resultados localmente para la generación del PDF
-                if 'form_data' not in st.session_state:
-                    st.session_state.form_data = {}
+                puntaje_total, interpretacion = calcular_wonderlic(resultados_correctas, edad_paciente)
+
+                wonderlic_data_to_save = {
+                    "id": st.session_state.ficha_id,
+                    "comprende": comprende,
+                    **resultados_correctas,
+                    "puntaje_total": puntaje_total,
+                    "interpretacion": interpretacion
+                }
+                
                 st.session_state.form_data['test_wonderlic'] = {
-                    "comprende": st.session_state.get('comprende_wonderlic', False),
-                    **resultados_correctos
+                    "comprende": comprende,
+                    "puntaje_total": puntaje_total,
+                    "interpretacion": interpretacion
                 }
 
-                # Preparar datos para la base de datos
-                wonderlic_data_db = resultados_correctos.copy()
-                wonderlic_data_db['id'] = st.session_state.ficha_id
-                wonderlic_data_db['comprende'] = st.session_state.get('comprende_wonderlic', False)
-
-                
-                # Enviar a Supabase
                 try:
-                    response = supabase.from_('test_wonderlic').insert(wonderlic_data_db).execute()
+                    response = supabase.from_('test_wonderlic').insert(wonderlic_data_to_save).execute()
                     if response.data:
-                        # Limpiar el estado del temporizador y avanzar
                         if 'wonderlic_start_time' in st.session_state: del st.session_state['wonderlic_start_time']
                         if 'wonderlic_submitted' in st.session_state: del st.session_state['wonderlic_submitted']
-                        
                         st.session_state.current_test_index += 1    
                         st.rerun()
                     else:
-                        st.error(f"Error al guardar los resultados del test Wonderlic: {response.error.message if response.error else 'Error desconocido.'}")
+                        st.error(f"Error al guardar: {response.error.message if response.error else 'Error desconocido.'}")
                 
                 except Exception as e:
-                    st.error(f"Ocurrió una excepción al intentar guardar los resultados del test Wonderlic: {e}")
+                    st.error(f"Excepción al guardar: {e}")
 
     elif not st.session_state.get('wonderlic_submitted', False) and not is_time_up:
-        time.sleep(1) # Espera 1 segundo antes de re-ejecutar para actualizar el timer
-        try:
-            st.rerun()
+        time.sleep(1)
+        try: st.rerun()
         except st.errors.StreamlitAPIException as e:
-            # Ignorar el error que ocurre cuando el usuario navega fuera de la página
-            if "RerunData" in str(e):
-                pass
-            else:
-                raise e
+            if "RerunData" in str(e): pass
+            else: raise e
 

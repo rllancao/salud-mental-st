@@ -170,8 +170,8 @@ def generar_pdf_epq_r(epq_r_data, ficha_data):
 
         detailed_scores[dim_name] = {
             'PD': pd_score,
-            'Puntaje T H': puntaje_t_hombre,
-            'Puntaje T M': puntaje_t_mujer,
+            'Puntaje T M': puntaje_t_hombre,
+            'Puntaje T F': puntaje_t_mujer,
             'Puntaje T Final': puntaje_t_final
         }
 
