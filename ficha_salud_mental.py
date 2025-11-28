@@ -169,6 +169,9 @@ def connect_to_mysql():
 
 @st.cache_data(ttl=600)
 def fetch_patient_data(_supabase_client: Client, _rut_paciente):
+    # --- CORRECCIÓN: Normalizar RUT a mayúsculas para búsqueda consistente ---
+    rut_busqueda_norm = _rut_paciente.strip().upper()
+    
     connection = connect_to_mysql()
     if not connection: return None
     query = "SELECT datosPersona, nombre_lab, prestacionesSalud FROM `agendaViewPrest` WHERE fecha <= CURDATE() AND fecha > DATE_SUB(CURDATE(), INTERVAL 14 DAY)"
@@ -176,7 +179,11 @@ def fetch_patient_data(_supabase_client: Client, _rut_paciente):
         df = pd.read_sql(query, connection)
         for _, row in df.iterrows():
             datos_persona = json.loads(row['datosPersona'])
-            if datos_persona.get('rut') == _rut_paciente:
+            
+            # --- CORRECCIÓN: Comparación insensible a mayúsculas/minúsculas ---
+            rut_mysql = datos_persona.get('rut', '').strip().upper()
+            
+            if rut_mysql == rut_busqueda_norm:
                 warnings, tests_filtrados = [], []
                 fecha_nac_str = datos_persona.get('fecha_nac')
                 edad = None
@@ -198,11 +205,12 @@ def fetch_patient_data(_supabase_client: Client, _rut_paciente):
                 sexo = datos_persona.get('sexo', '').strip().upper()
                 prestaciones_str = row.get('prestacionesSalud','') or ""
                 
-                # --- LÓGICA DE PRIORIDADES DE ASIGNACIÓN ---
+                # --- LÓGICA DE PRIORIDADES DE ASIGNACIÓN (CORREGIDA PARA RUT 'K') ---
                 today_str = date.today().isoformat()
                 
                 # 1. Verificar si existe ASIGNACIÓN MANUAL (Nueva tabla) - Prioridad Alta
-                manual_response = _supabase_client.from_('asignaciones_manuales').select('tests_asignados').eq('rut', _rut_paciente).gte('created_at', f'{today_str}T00:00:00').order('created_at', desc=True).limit(1).execute()
+                # Usamos execute() sin .single() y verificamos la longitud de la lista para evitar el error PGRST116
+                manual_response = _supabase_client.from_('asignaciones_manuales').select('tests_asignados').eq('rut', rut_busqueda_norm).gte('created_at', f'{today_str}T00:00:00').order('created_at', desc=True).limit(1).execute()
                 
                 tests_manuales = []
                 if manual_response.data:
@@ -215,10 +223,11 @@ def fetch_patient_data(_supabase_client: Client, _rut_paciente):
                     is_aeronautica = 'evaluacion salud mental' in prestaciones_str.lower()
                     
                     if is_aeronautica:
-                        aero_response = _supabase_client.from_('asignaciones_aeronautica').select('tests_asignados').eq('rut', _rut_paciente).gte('created_at', f'{today_str}T00:00:00').order('created_at', desc=True).limit(1).single().execute()
+                        # Igual aquí: quitamos .single() y verificamos lista vacía
+                        aero_response = _supabase_client.from_('asignaciones_aeronautica').select('tests_asignados').eq('rut', rut_busqueda_norm).gte('created_at', f'{today_str}T00:00:00').order('created_at', desc=True).limit(1).execute()
                         
-                        if aero_response.data and aero_response.data.get('tests_asignados'):
-                            tests_filtrados = aero_response.data['tests_asignados']
+                        if aero_response.data and aero_response.data[0].get('tests_asignados'):
+                            tests_filtrados = aero_response.data[0]['tests_asignados']
                         else:
                             warnings.append("Paciente de aeronáutica pendiente de asignación de tests por parte del psicólogo.")
                     else:

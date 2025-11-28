@@ -3,7 +3,9 @@ from supabase import Client
 import io
 import pymysql
 import json
-from datetime import date
+from datetime import date, datetime, timedelta
+import pandas as pd
+import plotly.graph_objects as go
 
 BUCKET_NAME = "ficha_ingreso_SM_bucket"
 TESTS_SALUD_MENTAL = [
@@ -11,9 +13,8 @@ TESTS_SALUD_MENTAL = [
     "PBLL", "16 PF", "KOSTICK", "PSQI", "D-48", "WESTERN", "EPQ-R"
 ]
 
-# --- Conexión a Base de Datos MySQL ---
-@st.cache_resource
-def connect_to_mysql():
+# --- Conexión a Base de Datos MySQL (Con reconexión) ---
+def get_mysql_connection():
     try:
         connection = pymysql.connect(
             host=st.secrets["mysql"]["host"],
@@ -27,10 +28,10 @@ def connect_to_mysql():
         st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
         return None
 
-# --- Función para buscar pacientes de aeronáutica (Filtra por prestación) ---
+# --- Función para buscar pacientes de aeronáutica ---
 @st.cache_data(ttl=300)
 def fetch_aeronautica_hoy(sede):
-    connection = connect_to_mysql()
+    connection = get_mysql_connection()
     if not connection:
         return []
 
@@ -38,7 +39,6 @@ def fetch_aeronautica_hoy(sede):
     if "SANTIAGO" in sede:
         sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
 
-    # Busca solo los que tienen EVALUACION SALUD MENTAL en sus prestaciones
     query = """
     SELECT datosPersona, prestacionesSalud
     FROM `agendaViewPrest`
@@ -47,6 +47,9 @@ def fetch_aeronautica_hoy(sede):
       AND prestacionesSalud LIKE %s
     """
     try:
+        # Forzar reconexión si se cayó
+        connection.ping(reconnect=True)
+        
         with connection.cursor() as cursor:
             cursor.execute(query, (f"%{sede_busqueda}%", '%EVALUACION SALUD MENTAL%'))
             results = cursor.fetchall()
@@ -56,6 +59,9 @@ def fetch_aeronautica_hoy(sede):
         for row in results:
             try:
                 datos_persona = json.loads(row[0])
+                # Extraer empresa del JSON
+                empresa = datos_persona.get('nombre_contra', 'Empresa no especificada')
+                
                 rut = datos_persona.get('rut')
                 nombre_completo = " ".join(filter(None, [
                     datos_persona.get('nombre', '').strip(),
@@ -79,6 +85,7 @@ def fetch_aeronautica_hoy(sede):
                 pacientes_aeronautica.append({
                     "rut": rut,
                     "nombre_completo": nombre_completo,
+                    "empresa": empresa,
                     "tests_originales": tests_originales
                 })
             except json.JSONDecodeError:
@@ -88,11 +95,14 @@ def fetch_aeronautica_hoy(sede):
     except Exception as e:
         st.error(f"Error al buscar los pacientes de aeronáutica: {e}")
         return []
+    finally:
+        if connection:
+            connection.close()
 
-# --- Función para obtener PACIENTES CON PRESTACIONES SM agendados hoy ---
+# --- Función para obtener TODOS los pacientes agendados hoy ---
 @st.cache_data(ttl=300)
 def fetch_todos_pacientes_hoy(sede):
-    connection = connect_to_mysql()
+    connection = get_mysql_connection()
     if not connection:
         return []
 
@@ -100,15 +110,16 @@ def fetch_todos_pacientes_hoy(sede):
     if "SANTIAGO" in sede:
         sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
 
-    # Traemos pacientes de la sede que tengan ALGUNA prestación definida
+    # Consulta amplia: Trae a todos los agendados hoy en la sede
     query = """
     SELECT datosPersona, prestacionesSalud
     FROM `agendaViewPrest`
     WHERE fecha = CURDATE() 
-      AND nombre_lab LIKE %s 
+      AND nombre_lab LIKE %s
       AND prestacionesSalud IS NOT NULL
     """
     try:
+        connection.ping(reconnect=True)
         with connection.cursor() as cursor:
             cursor.execute(query, (f"%{sede_busqueda}%",))
             results = cursor.fetchall()
@@ -118,43 +129,34 @@ def fetch_todos_pacientes_hoy(sede):
         for row in results:
             try:
                 datos_persona = json.loads(row[0])
-                prestaciones_str = row[1] or ""
+                empresa = datos_persona.get('nombre_contra', 'Empresa no especificada')
                 
-                # Parsear prestaciones y filtrar: ¿Tiene algún test de salud mental?
+                rut = datos_persona.get('rut')
+                nombre_completo = " ".join(filter(None, [
+                    datos_persona.get('nombre', '').strip(),
+                    datos_persona.get('nombre2', '').strip(),
+                    datos_persona.get('apellidoP', '').strip(),
+                    datos_persona.get('apellidoM', '').strip()
+                ]))
+                
+                # Parsear prestaciones originales
+                prestaciones_str = row[1] if len(row) > 1 else ""
                 tests_originales = []
-                tiene_prestacion_sm = False
-                
                 if prestaciones_str:
                     try:
                         lista_prest = json.loads(prestaciones_str)
                         for p in lista_prest:
-                            # Chequeo 1: Si es explícitamente 'EVALUACION SALUD MENTAL' (caso aeronáutica o batería)
-                            if 'EVALUACION SALUD MENTAL' in p.upper():
-                                tiene_prestacion_sm = True
-                            
-                            # Chequeo 2: Si contiene alguno de los tests individuales definidos
                             for t in TESTS_SALUD_MENTAL:
-                                if t in p.upper():
-                                    tiene_prestacion_sm = True
-                                    if t not in tests_originales:
-                                        tests_originales.append(t)
+                                if t in p.upper() and t not in tests_originales:
+                                    tests_originales.append(t)
                     except: pass 
 
-                # SOLO AGREGAR SI TIENE PRESTACIONES DE SALUD MENTAL
-                if tiene_prestacion_sm:
-                    rut = datos_persona.get('rut')
-                    nombre_completo = " ".join(filter(None, [
-                        datos_persona.get('nombre', '').strip(),
-                        datos_persona.get('nombre2', '').strip(),
-                        datos_persona.get('apellidoP', '').strip(),
-                        datos_persona.get('apellidoM', '').strip()
-                    ]))
-
-                    todos_pacientes.append({
-                        "rut": rut,
-                        "nombre_completo": nombre_completo,
-                        "tests_originales": tests_originales 
-                    })
+                todos_pacientes.append({
+                    "rut": rut,
+                    "nombre_completo": nombre_completo,
+                    "empresa": empresa,
+                    "tests_originales": tests_originales
+                })
             except json.JSONDecodeError:
                 continue 
 
@@ -162,6 +164,9 @@ def fetch_todos_pacientes_hoy(sede):
     except Exception as e:
         st.error(f"Error al buscar el listado de pacientes: {e}")
         return []
+    finally:
+        if connection:
+            connection.close()
 
 # --- Función Genérica para obtener última asignación de una tabla específica ---
 def get_latest_assignment_generic(supabase: Client, rut: str, table_name: str):
@@ -184,10 +189,61 @@ def get_combined_assignment_manual(supabase: Client, rut: str, tests_originales:
     else:
         return tests_originales # Si no, muestra lo de la agenda
 
+# --- FUNCIONES PARA ESTADO DIARIO ---
+@st.cache_data(ttl=60)
+def fetch_iniciados_hoy(_supabase: Client, sede):
+    try:
+        today = datetime.now()
+        start_of_today = today.strftime('%Y-%m-%d 00:00:00')
+        tomorrow = today + timedelta(days=1)
+        start_of_tomorrow = tomorrow.strftime('%Y-%m-%d 00:00:00')
+
+        sede_busqueda = sede
+        if "SANTIAGO" in sede:
+            sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
+
+        response = _supabase.from_('ficha_ingreso').select('rut').like('sucursal_workmed', f'%{sede_busqueda}%').gte('created_at', start_of_today).lt('created_at', start_of_tomorrow).execute()
+
+        if response.data:
+            return {item['rut'] for item in response.data}
+        return set()
+    except Exception as e:
+        st.error(f"Error al buscar las fichas iniciadas: {e}")
+        return set()
+
+@st.cache_data(ttl=60)
+def fetch_progreso_tests(_supabase: Client, ruts: list):
+    progreso = {rut: [] for rut in ruts}
+    if not ruts: return progreso
+
+    try:
+        fichas_response = _supabase.from_('ficha_ingreso').select('id, rut').in_('rut', ruts).execute()
+        if not fichas_response.data:
+            return progreso
+        
+        id_a_rut_map = {item['id']: item['rut'] for item in fichas_response.data}
+        ids = list(id_a_rut_map.keys())
+        if not ids: return progreso
+
+        tablas_tests = ["test_epworth", "test_wonderlic", "test_disc", "test_epq_r", "test_pbll", "test_alerta", "test_barratt", "test_kostick", "test_psqi", "test_western", "test_d48", "test_16pf"]
+        nombres_tests = ["EPWORTH", "WONDERLIC", "DISC", "EPQ-R", "PBLL", "ALERTA", "BARRATT", "KOSTICK", "PSQI", "WESTERN", "D-48", "16 PF"]
+
+        for tabla, nombre_test in zip(tablas_tests, nombres_tests):
+            response = _supabase.from_(tabla).select('id').in_('id', ids).execute()
+            if response.data:
+                for item in response.data:
+                    rut = id_a_rut_map.get(item['id'])
+                    if rut:
+                        progreso[rut].append(nombre_test)
+    except Exception as e:
+        st.error(f"Error al verificar el progreso de los tests: {e}")
+    
+    return progreso
+
 def crear_interfaz_psicologo(supabase: Client):
     st.title("Panel del Psicólogo")
     
-    tab1, tab2, tab3 = st.tabs(["Búsqueda de Informes", "Asignación Aeronáutica", "Agendamiento Manual"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Búsqueda de Informes", "Asignación Aeronáutica", "Agendamiento Manual", "Estado Diario"])
 
     # --- PESTAÑA 1: BÚSQUEDA DE INFORMES ---
     with tab1:
@@ -204,6 +260,7 @@ def crear_interfaz_psicologo(supabase: Client):
                         todos_los_paths = set()
                         nombre_paciente = ""
 
+                        # Buscar en tabla resumen
                         fichas_response = supabase.from_('registros_fichas_sm').select('nombre_completo, pdf_path').eq('rut', rut_busqueda).execute()
                         if fichas_response.data:
                             if not nombre_paciente:
@@ -212,6 +269,7 @@ def crear_interfaz_psicologo(supabase: Client):
                                 if ficha.get('pdf_path'):
                                     todos_los_paths.add(ficha['pdf_path'])
                         
+                        # Buscar en tablas individuales
                         ids_response = supabase.from_('ficha_ingreso').select('id, nombre_completo').eq('rut', rut_busqueda).execute()
                         if ids_response.data:
                             if not nombre_paciente:
@@ -317,7 +375,16 @@ def crear_interfaz_psicologo(supabase: Client):
             if len(sedes_manual) > 1:
                 sede_manual = st.selectbox("Seleccione una sede:", options=sedes_manual, key="sede_manual_select")
             
-            rut_filter = st.text_input("Filtrar por RUT:", placeholder="Ej. 12345678-9", key="rut_filter_manual").strip()
+            # BOTÓN DE ACTUALIZAR
+            col_a, col_b = st.columns([5, 1])
+            with col_a:
+                rut_filter = st.text_input("Filtrar por RUT:", placeholder="Ej. 12345678-9", key="rut_filter_manual").strip()
+            with col_b:
+                st.write("")
+                st.write("")
+                if st.button("🔄 Actualizar"):
+                    st.cache_data.clear()
+                    st.rerun()
             
             with st.spinner(f"Cargando listado de pacientes SM para {sede_manual}..."):
                 todos_pacientes = fetch_todos_pacientes_hoy(sede_manual)
@@ -368,7 +435,7 @@ def crear_interfaz_psicologo(supabase: Client):
                         
                         if st.button("Guardar Asignación Manual", key=f"btn_save_manual_{rut_p}_{idx}"):
                             try:
-                                # --- CAMBIO CLAVE: Se guarda en 'asignaciones_manuales' ---
+                                # Guardar en 'asignaciones_manuales' (prioridad máxima)
                                 response = supabase.from_('asignaciones_manuales').insert({
                                     'rut': rut_p,
                                     'tests_asignados': selected_tests_m
@@ -377,7 +444,82 @@ def crear_interfaz_psicologo(supabase: Client):
                                 if response.data:
                                     st.success(f"¡Asignación actualizada para {nombre_p}!")
                                     st.cache_data.clear() 
+                                    st.rerun()
                                 else:
                                     st.error("Error al guardar en la base de datos.")
                             except Exception as e:
                                 st.error(f"Error de conexión: {e}")
+                                
+    # --- PESTAÑA 4: ESTADO DIARIO (NUEVA) ---
+    with tab4:
+        st.header("Estado Diario de Pacientes")
+        st.write("Monitoreo en tiempo real del progreso de evaluaciones de hoy.")
+
+        sedes_diario = st.session_state.get("user_sedes", [])
+        if not sedes_diario:
+            st.error("No tiene sedes asignadas.")
+        else:
+            sede_d = sedes_diario[0]
+            if len(sedes_diario) > 1: sede_d = st.selectbox("Sede:", sedes_diario, key="sede_diario_psi")
+            
+            if st.button("🔄 Actualizar Tabla", key="refresh_diario_psi"):
+                st.cache_data.clear()
+                st.rerun()
+
+            with st.spinner("Cargando datos..."):
+                # 1. Traer todos los pacientes de hoy (usando la misma lógica de agendamiento manual)
+                pacientes = fetch_todos_pacientes_hoy(sede_d)
+                # 2. Traer quiénes ya iniciaron ficha
+                iniciados = fetch_iniciados_hoy(supabase, sede_d)
+                # 3. Traer progreso de tests
+                progreso = fetch_progreso_tests(supabase, [p['rut'] for p in pacientes])
+
+            if not pacientes:
+                st.info("No hay pacientes agendados hoy.")
+            else:
+                # Construir DataFrame
+                rows = []
+                stats = {"Pendiente": 0, "En Progreso": 0, "Finalizado": 0}
+                
+                for p in pacientes:
+                    rut = p['rut']
+                    # Determinar tests finales (Agenda + Manuales)
+                    tests_finales = get_combined_assignment_manual(supabase, rut, p['tests_originales'])
+                    tests_hechos = set(progreso.get(rut, []))
+                    
+                    estado = "🟡 Pendiente"
+                    if rut in iniciados:
+                        # Si tiene tests asignados y los completó todos
+                        if tests_finales and tests_hechos.issuperset(set(tests_finales)):
+                            estado = "✅ Finalizado"
+                        else:
+                            estado = "🔵 En Progreso"
+                    
+                    # --- CORRECCIÓN APLICADA: Mapeo directo sin .split() ---
+                    if "Pendiente" in estado:
+                        stats["Pendiente"] += 1
+                    elif "En Progreso" in estado:
+                        stats["En Progreso"] += 1
+                    elif "Finalizado" in estado:
+                        stats["Finalizado"] += 1
+                    
+                    # Detalle de tests (Visualización compacta)
+                    detalle_tests = []
+                    for t in tests_finales:
+                        icon = "✅" if t in tests_hechos else "⏳"
+                        detalle_tests.append(f"{icon} {t}")
+                    
+                    rows.append({
+                        "RUT": rut,
+                        "Nombre": p['nombre_completo'],
+                        "Estado": estado,
+                        "Tests Asignados": ", ".join(detalle_tests) if detalle_tests else "Sin asignación"
+                    })
+                
+                # Mostrar Métricas
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Pendientes", stats["Pendiente"])
+                c2.metric("En Progreso", stats["En Progreso"])
+                c3.metric("Finalizados", stats["Finalizado"])
+                
+                st.dataframe(pd.DataFrame(rows), use_container_width=True)

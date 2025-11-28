@@ -108,14 +108,42 @@ def get_image_as_base64(path):
         return None
 
 def crear_interfaz_western(supabase: Client):
-    st.components.v1.html("<script>window.top.scrollTo(0, 0);</script>", height=0)
+    # --- CONTROL DE ESTADO Y SCROLL ---
+    
+    # Inicializar estado si no existe
+    if 'western_started' not in st.session_state:
+        st.session_state.western_started = False
+        
+    # --- SCROLL TO TOP ROBUSTO ---
+    # Inyectamos el estado 'western_started' en el script para que cambie cuando
+    # el usuario presiona "Empezar Test", forzando la re-ejecución del scroll.
+    st.components.v1.html(
+        f"""
+        <script>
+            // Status: {st.session_state.western_started} (Fuerza actualización al cambiar estado)
+            
+            // Intentar hacer scroll al elemento con ID 'inicio_pagina' (definido en maestro.py)
+            var topElement = window.parent.document.getElementById('inicio_pagina');
+            if (topElement) {{
+                topElement.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+            }} else {{
+                // Fallback: scroll al top del contenedor principal si no encuentra el ID
+                var main = window.parent.document.querySelector('section.main');
+                if (main) {{
+                    main.scrollTo(0, 0);
+                }} else {{
+                    window.scrollTo(0, 0);
+                }}
+            }}
+        </script>
+        """, 
+        height=0
+    )
+
     st.title("Test de Aptitudes Mentales (Western)")
     st.markdown("---")
 
     # --- Estado 1: Instrucciones ---
-    if 'western_started' not in st.session_state:
-        st.session_state.western_started = False
-
     if not st.session_state.western_started:
         st.info(
             """
