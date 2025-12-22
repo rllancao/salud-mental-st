@@ -69,14 +69,9 @@ def crear_interfaz_barratt(supabase: Client):
 
             Se encontrará con 30 situaciones.
 
-            Para cada situación considere cómo piensa y actúa usted, de manera de saber si esta forma de actuar o pensar la realiza:
+            Para cada situación considere cómo piensa y actúa usted, de manera de saber si esta forma de actuar o pensar la realiza.
 
-            *Rara vez o Nunca (1 punto)
-            *A veces (2 puntos)
-            *A menudo (3 puntos)
-            *Casi siempre o Siempre (4 puntos)
-
-            **Nota:** Algunas preguntas tienen puntaje invertido.
+        
         """
     )
 

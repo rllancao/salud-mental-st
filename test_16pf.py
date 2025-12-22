@@ -84,7 +84,7 @@ OPTION_SETS = {
     "TRABAJO_FAMILIAR": {"Me aburre y me da sueño": 1, "?": 2, "Me da seguridad y confianza": 3},
     "TRABAJO_SOLO": {"Verdadero": 1, "?": 2, "Falso": 3},
     "HABITACION": {"Verdadero": 1, "?": 2, "Falso": 3},
-    "PACIENTE": {"Verdadero": 1, "?": 2, "Falso": 3},    
+    "PACIENTE": {"Verdadero": 1, "?": 2, "Falso, me cuesta ser paciente": 3},    
     "UNIRME": {"Verdadero": 1, "?": 2, "Falso": 3},
     "PERFECCIONISTA": {"Verdadero": 1, "?": 2, "Falso": 3},
     "COLA": {"Verdadero, no me pongo": 1, "?": 2, "Falso, me pongo intranquilo": 3},
@@ -115,8 +115,7 @@ OPTION_SETS = {
     "SENSIBLE": {"Casi nunca": 1, "?": 2, "A menudo": 3},
     "PERIODICO_2": {"Los artículos sobre los problemas sociuales": 1, "?": 2, "Todas las noticias locales": 3},
     "TARDE_2": {"Leer o trabajar en solitario en un proyecto": 1, "?": 2, "Hacer alguna tarea con los amigos": 3},
-    "MOLESTO": {"Dejarlo a un lado hasta que no haya más remedio que hacerlo": 1, "?": 2, "Hacer alguna tarea con los amigos": 3},
-    "COMIDA": {"Dejarlo a un lado hasta que no haya más remedio que hacerlo": 1, "?": 2, "Comenzar a hacerlo de inmediato": 3},
+    "MOLESTO": {"Dejarlo a un lado hasta que no haya más remedio que hacerlo": 1, "?": 2, "Comenzar a hacerlo de inmediato": 3},
     "TOMAR_COMIDA": {"Con un grupo de gente": 1, "?": 2, "En solitario": 3},
     "PACIENTE_PERSONAS": {"Verdadero": 1, "?": 2, "Falso": 3},
     "PENSAR_ANTES": {"Verdadero": 1, "?": 2, "Falso": 3},
@@ -147,7 +146,7 @@ OPTION_SETS = {
     "CRITICO": {"Verdadero": 1, "?": 2, "Falso": 3},
     "COMIDA_ALIMENTOS": {"Verdadero": 1, "?": 2, "Falso": 3},
     "SIN_HABLAR": {"Verdadero": 1, "?": 2, "Falso": 3},
-    "AYUDAR_PERSONAS": {"Verdadero": 1, "?": 2, "Falso": 3},
+    "AYUDAR_PERSONAS": {"Siempre": 1, "?": 2, "A veces": 3},
     "CREO_QUE": {"Algunos trabajos no deberían ser hechos tan cuidadosamente como otros": 1, "?": 2, "Cualquier trabajo habría que hacerlo bien si es que se va a hacer": 3},
     "DIFICIL_PACIENTE": {"Verdadero": 1, "?": 2, "Falso": 3},
     "PREFIERO_GENTE": {"Verdadero": 1, "?": 2, "Falso": 3},
@@ -242,7 +241,7 @@ TEXTOS_PREGUNTAS = {
     56: "Prefiero los juegos en lo que:",
     57: "Normalmente dejo algunas cosas a la buena suerte, en vez de hacer planes complejos y con todo detalle.",
     58: "Frecuentemente tengo periodos de tiempo en que me es difícil abandonar el sentimiento de compadecerme a mí mismo.",
-    59: "Mis mejores horas del día son aquellas que estoy solo con mis pensamientos y proyecto.",
+    59: "Mis mejores horas del día son aquellas en que estoy solo con mis pensamientos y proyecto.",
     60: "Si la gente me interrumpe cuando estoy intentando hacer algo, eso no me perturba.",
     61: "Siempre conservo mis pertenencias en perfectas condiciones.",
     62: "A veces me siento frustrado por las personas demasiado rápidamente.",
@@ -343,7 +342,7 @@ TEXTOS_PREGUNTAS = {
     157: "Cuando realizo una tarea no me encuentro satisfecho a no ser que ponga especial atención incluso a los pequeños detalles.",
     158: "Algunas veces me “ sacan de quicio” de un modo insoportable pequeñas cosas, aunque reconozca que son triviales.",
     159: "Me gusta más escuchar a la gente hablar de sus sentimientos personales que de otros temas.",
-    160: "Hay ocasiones en que no me siento de humar para ver a nadie.",
+    160: "Hay ocasiones en que no me siento de humor para ver a nadie.",
     161: "Me gustaría más ser consejero orientador que arquitecto.",
     162: "En mi vida cotidiana casi nunca me encuentro con problemas que no puedo afrontar.",
     163: "Cuando las personas hacen algo que me molesta, normalmente:",
@@ -798,7 +797,7 @@ def crear_interfaz_16pf(supabase: Client, sexo_paciente: str):
         """
         **Instrucciones:** A continuación, encontrará una serie de preguntas. 
         Estas preguntas buscan conocer sus intereses y la forma en que usted piensa. 
-        No hay respuestas "buenas" o "malas". Responda con sinceridad.
+        No hay respuestas "buenas" o "malas". Responda la totalidad de las preguntas con sinceridad.
         """
     )
 
@@ -811,6 +810,11 @@ def crear_interfaz_16pf(supabase: Client, sexo_paciente: str):
 
         # Renderizar preguntas
         for i in range(1, 186):
+            
+            if i == 171:
+                st.info("Las siguientes preguntas consisten en ejercicios de resolución de problemas. En estas solamente existe 1 respuesta correcta, elija la que crea mejor.")
+            
+            
             config = QUESTIONS_CONFIG.get(i)
             if not config: continue
             

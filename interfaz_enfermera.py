@@ -205,53 +205,49 @@ def crear_interfaz_enfermera(_supabase: Client):
     for paciente in pacientes_agendados:
         rut = paciente['rut']
         fecha_paciente = paciente['fecha']
-        if isinstance(fecha_paciente, datetime):
-             fecha_paciente = fecha_paciente.date()
-        
+        if isinstance(fecha_paciente, datetime): fecha_paciente = fecha_paciente.date()
         fecha_str = fecha_paciente.strftime('%Y-%m-%d') if isinstance(fecha_paciente, (date, datetime)) else str(fecha_paciente)
         
         tests_asignados = set(paciente['tests_asignados'])
-        
-        row_data = {
-            'Fecha': fecha_str,
-            'RUT': rut, 
-            'Nombre Paciente': paciente['nombre_completo']
-        }
-        
         tests_completados = set(progreso_tests.get(rut, []))
         num_asignados = len(tests_asignados)
         num_completados = len(tests_completados.intersection(tests_asignados))
         
-        # --- CAMBIO: Generar string de progreso "X/Y" ---
-        progreso_str = f"{num_completados}/{num_asignados}"
-        row_data['Progreso'] = progreso_str # Nueva columna principal
+        # --- LÓGICA HÍBRIDA ---
+        estado_filtro = "Pendiente"
+        icono = "🟡"
         
-        # Determinar estado lógico para filtros y gráficos (aunque no se muestre en tabla como texto)
-        estado_logico = ""
         if rut not in ruts_iniciados and num_completados == 0:
-             # Si no ha iniciado ficha o no tiene tests hechos -> Pendiente
-             estado_logico = "Pendiente"
+             estado_filtro = "Pendiente"
+             icono = "🟡"
              if fecha_paciente == today_date: stats_hoy["Pendiente"] += 1
         else:
             if num_completados >= num_asignados and num_asignados > 0:
-                estado_logico = "Finalizado"
+                estado_filtro = "Finalizado"
+                icono = "✅"
                 if fecha_paciente == today_date: stats_hoy["Finalizado"] += 1
             else:
-                estado_logico = "En Progreso"
+                estado_filtro = "En Progreso"
+                icono = "🔵"
                 if fecha_paciente == today_date: stats_hoy["En Progreso"] += 1
         
-        # Guardamos el estado lógico oculto para filtrado
-        row_data['_estado_filtro'] = estado_logico 
+        display_estado = f"{icono} {num_completados}/{num_asignados}"
+        
+        row_data = {
+            'Fecha': fecha_str,
+            'RUT': rut, 
+            'Nombre Paciente': paciente['nombre_completo'],
+            'Estado': display_estado, # Columna híbrida
+            '_filtro': estado_filtro # Oculta para filtrar
+        }
 
-        # Rellenar estado por test individual
+        # Rellenar estado por test
         primer_pendiente_encontrado = False
         for test in all_assigned_tests:
-            if test not in tests_asignados:
-                row_data[test] = '⚪ No Aplica'
-            elif test in tests_completados:
-                row_data[test] = '✅ Finalizado'
+            if test not in tests_asignados: row_data[test] = '⚪ No Aplica'
+            elif test in tests_completados: row_data[test] = '✅ Finalizado'
             else:
-                if estado_logico == "En Progreso" and not primer_pendiente_encontrado:
+                if estado_filtro == "En Progreso" and not primer_pendiente_encontrado:
                     row_data[test] = '🔵 En Progreso'
                     primer_pendiente_encontrado = True
                 else:
@@ -299,26 +295,24 @@ def crear_interfaz_enfermera(_supabase: Client):
             st.cache_data.clear()
             st.rerun()
 
-    # Aplicar filtros usando la columna lógica oculta
     if filter_option == "Pendientes":
-        filtered_list = [p for p in lista_final_pacientes if p['_estado_filtro'] == 'Pendiente']
+        filtered_list = [p for p in lista_final_pacientes if p['_filtro'] == 'Pendiente']
     elif filter_option == "En Progreso":
-        filtered_list = [p for p in lista_final_pacientes if p['_estado_filtro'] == 'En Progreso']
+        filtered_list = [p for p in lista_final_pacientes if p['_filtro'] == 'En Progreso']
     elif filter_option == "Finalizados":
-        filtered_list = [p for p in lista_final_pacientes if p['_estado_filtro'] == 'Finalizado']
+        filtered_list = [p for p in lista_final_pacientes if p['_filtro'] == 'Finalizado']
     else:
         filtered_list = lista_final_pacientes
 
     if filtered_list:
-        # Crear DataFrame para visualización, eliminando la columna oculta
-        df_display = pd.DataFrame(filtered_list)
-        if '_estado_filtro' in df_display.columns:
-            df_display = df_display.drop(columns=['_estado_filtro'])
-            
-        # Reordenar columnas para que Progreso aparezca al principio junto a nombre/rut
-        cols = ['Fecha', 'RUT', 'Nombre Paciente', 'Progreso'] + [c for c in df_display.columns if c not in ['Fecha', 'RUT', 'Nombre Paciente', 'Progreso']]
-        df_display = df_display[cols]
+        df = pd.DataFrame(filtered_list)
+        # Mostrar tabla sin la columna oculta de filtro
+        if '_filtro' in df.columns: df = df.drop(columns=['_filtro'])
         
-        st.dataframe(df_display, width='stretch')
+        # Reordenar: Fecha, RUT, Nombre, Estado...
+        cols = ['Fecha', 'RUT', 'Nombre Paciente', 'Estado'] + [c for c in df.columns if c not in ['Fecha', 'RUT', 'Nombre Paciente', 'Estado']]
+        df = df[cols]
+        
+        st.dataframe(df, width='stretch')
     else:
         st.info("No hay pacientes que coincidan con el filtro seleccionado.")

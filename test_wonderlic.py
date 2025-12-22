@@ -82,7 +82,7 @@ def crear_interfaz_wonderlic(supabase: Client):
         st.warning(
             """
             **TIEMPO LÍMITE:**
-            TIENE UN MÁXIMO DE **15 MINUTOS** PARA COMPLETAR EL TEST.
+            TIENE UN MÁXIMO DE **12 MINUTOS** PARA COMPLETAR EL TEST.
             **(No debe usar calculadora)**
             """
         )
@@ -108,12 +108,12 @@ def crear_interfaz_wonderlic(supabase: Client):
 
         # Cálculo del tiempo (15 minutos = 900 segundos)
         elapsed_time = time.time() - st.session_state.wonderlic_start_time
-        remaining_time = 900 - elapsed_time
+        remaining_time = 720 - elapsed_time
         is_time_up = remaining_time <= 0
         
         # --- Mostrar Temporizador GIF ---
         if not st.session_state.get('wonderlic_submitted', False):
-            gif_base64 = get_image_as_base64("15-minute.gif")
+            gif_base64 = get_image_as_base64("12-minute.gif")
             if gif_base64:
                 timer_html = f"""
                 <style>

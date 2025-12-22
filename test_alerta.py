@@ -91,7 +91,7 @@ def crear_interfaz_alerta(supabase: Client):
         st.warning(
             """
             **TIEMPO LÍMITE:**
-            HAY 36 PREGUNTAS Y USTED TIENE **SOLO 9 MINUTOS** PARA CONTESTAR.
+            HAY 36 PREGUNTAS Y USTED TIENE **SOLO 6 MINUTOS** PARA CONTESTAR.
             TRABAJE RÁPIDO Y CONTESTE LO MEJOR QUE PUEDA.
             """
         )
@@ -117,12 +117,12 @@ def crear_interfaz_alerta(supabase: Client):
 
         # Cálculo del tiempo
         elapsed_time = time.time() - st.session_state.alerta_start_time
-        remaining_time = 540 - elapsed_time # 9 minutos = 540 segundos
+        remaining_time = 360 - elapsed_time # 9 minutos = 540 segundos
         is_time_up = remaining_time <= 0
 
         # --- Mostrar Temporizador GIF ---
         if not st.session_state.get('alerta_submitted', False):
-            gif_base64 = get_image_as_base64("9-minute.gif")
+            gif_base64 = get_image_as_base64("alerta_images/6-minute.gif")
             if gif_base64:
                 timer_html = f"""
                 <style>

@@ -83,7 +83,7 @@ PREGUNTAS_EPQ_R = [
     "¿Se siente a veces desbordante de energia y otras muy decaído?",
     "¿A veces deja para mañana lo que debería hacer hoy?",
     "¿La gente le cuenta muchas mentiras?",
-    "¿Se afecta fácilmente por según qué cosas?",
+    "¿Se afecta fácilmente con las cosas?",
     "Cuando ha cometido una equivocación, ¿está siempre dispuesto a admitirlo?",
     "Cuando tiene mal humor, ¿le cuesta controlarse?",
 ]
@@ -145,7 +145,19 @@ def calcular_epq_r_niveles(respuestas_usuario, sexo_paciente):
         elif 56 <= pt <= 65: nivel = "Bastante"
         niveles[f"nivel_{nombre}"] = nivel
         
-    return niveles, conteos # Devuelve niveles y conteos para el PDF
+    # --- CÁLCULO DE APTITUD ---
+    # Criterio:
+    # Emotividad (M): Poca o Moderado (Se incluye Muy Poca por lógica de ser mejor)
+    # Dureza (D): Poca (Se incluye Muy Poca por lógica)
+    # Sinceridad (S): Moderado, Bastante o Muy Alto
+    
+    m_valido = niveles['nivel_emotividad'] in ["Muy Poca","Poca", "Moderado"]
+    d_valido = niveles['nivel_dureza'] in ["Muy Poca", "Poca"]
+    s_valido = niveles['nivel_sinceridad'] in ["Moderado", "Bastante", "Muy Alto"]
+
+    aptitud = True if (m_valido and d_valido and s_valido) else False
+
+    return niveles, conteos, aptitud # Devuelve niveles y conteos para el PDF
 
 
 def crear_interfaz_epq_r(supabase: Client, sexo_paciente: str):
@@ -199,7 +211,7 @@ def crear_interfaz_epq_r(supabase: Client, sexo_paciente: str):
                     if not sexo_paciente:
                          st.error("Error: No se pudo determinar el sexo del paciente para calcular los resultados.")
                          return 
-                    niveles_calculados, conteos_calculados = calcular_epq_r_niveles(respuestas_usuario_raw, sexo_paciente)
+                    niveles_calculados, conteos_calculados, aptitud_calculada = calcular_epq_r_niveles(respuestas_usuario_raw, sexo_paciente)
 
                     # 2. Transformar respuestas para la base de datos (letra/None)
                     processed_respuestas_db = {}
@@ -216,7 +228,8 @@ def crear_interfaz_epq_r(supabase: Client, sexo_paciente: str):
                         "id": st.session_state.ficha_id,
                         "comprende": comprende,
                         **processed_respuestas_db, 
-                        **niveles_calculados 
+                        **niveles_calculados,
+                        "aptitud": aptitud_calculada
                     }
                     
                     try:
@@ -230,7 +243,8 @@ def crear_interfaz_epq_r(supabase: Client, sexo_paciente: str):
                                 "comprende": comprende,
                                 **respuestas_usuario_raw, # Guardar Sí/No original
                                 **niveles_calculados, 
-                                "conteos": conteos_calculados 
+                                "conteos": conteos_calculados,
+                                "aptitud": aptitud_calculada
                             }
                             st.session_state.current_test_index += 1
                             st.rerun()

@@ -170,8 +170,8 @@ def generar_pdf_epq_r(epq_r_data, ficha_data):
 
         detailed_scores[dim_name] = {
             'PD': pd_score,
-            'Puntaje T M': puntaje_t_hombre,
-            'Puntaje T F': puntaje_t_mujer,
+            'Puntaje T H': puntaje_t_hombre,
+            'Puntaje T M': puntaje_t_mujer,
             'Puntaje T Final': puntaje_t_final
         }
 
@@ -210,7 +210,23 @@ def generar_pdf_epq_r(epq_r_data, ficha_data):
         pdf.image("tabla_resultados_epqr.png", x=10, y=pdf.get_y() + 10, w=190)
     except RuntimeError:
         pdf.ln(10)
-        pdf.chapter_body("[Aquí iría la imagen de la tabla de resultados, pero no se encontró el archivo 'tabla_resultados_epqr.png']")
+        #pdf.chapter_body("[Aquí iría la imagen de la tabla de resultados, pero no se encontró el archivo 'tabla_resultados_epqr.png']")
+        
+    # --- SECCIÓN DE CONCLUSIÓN / APTITUD ---
+    pdf.ln(90) # Espacio después de la imagen
+    pdf.chapter_title("Conclusión")
+    
+    aptitud = epq_r_data.get('aptitud', 'NO APTO') # Default si no existe la clave
+    
+    texto_conclusion = ""
+    if aptitud:
+        texto_conclusion = "APTO: Ajuste psicosocial dentro de los parámetros esperados."
+    else:
+        texto_conclusion = "NO APTO: Ajuste psicosocial inferior a lo requerido."
+    
+    # Dibujar la conclusión en negrita
+    pdf.set_font('Arial', 'B', 11)
+    pdf.multi_cell(0, 7, texto_conclusion)
 
     return pdf.output(dest='S').encode('latin1')
 
