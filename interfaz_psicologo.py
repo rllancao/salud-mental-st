@@ -485,6 +485,9 @@ def crear_interfaz_psicologo(supabase: Client):
                 rows = []
                 stats = {"Pendiente": 0, "En Progreso": 0, "Finalizado": 0}
                 
+                # Definir lista completa de tests para las columnas
+                all_assigned_tests = TESTS_SALUD_MENTAL # Usar la constante global
+
                 for p in pacientes:
                     rut = p['rut']
                     fecha_p = p['fecha']
@@ -498,7 +501,7 @@ def crear_interfaz_psicologo(supabase: Client):
                     
                     # --- LÓGICA HÍBRIDA DE ESTADO ---
                     estado_filtro = "Pendiente"
-                    icono_estado = "🟡" # Default pendiente
+                    icono_estado = "🟡" 
                     
                     if not tests_finales:
                          estado_filtro = "Sin Tests"
@@ -511,15 +514,13 @@ def crear_interfaz_psicologo(supabase: Client):
                             stats["Finalizado"] += 1
                         elif num_completados > 0:
                             estado_filtro = "En Progreso"
-                            icono_estado = "🔵" # O amarillo si prefieres 'en progreso' como pendiente activo
+                            icono_estado = "🔵"
                             stats["En Progreso"] += 1
                         else:
-                            # Iniciado pero 0 tests completados
                             estado_filtro = "Pendiente"
                             icono_estado = "🟡"
                             stats["Pendiente"] += 1
                     else:
-                        # No iniciado
                         estado_filtro = "Pendiente"
                         icono_estado = "🟡"
                         stats["Pendiente"] += 1
@@ -529,19 +530,30 @@ def crear_interfaz_psicologo(supabase: Client):
                     elif estado_filtro == "Sin Tests":
                          display_estado = "⚪ Sin Asignación"
 
-                    detalle_tests = []
-                    for t in tests_finales:
-                        icon = "✅" if t in tests_hechos else "⏳"
-                        detalle_tests.append(f"{icon} {t}")
-                    
-                    rows.append({
+                    # --- COLUMNAS INDIVIDUALES POR TEST ---
+                    row_data = {
                         "Fecha": fecha_str, 
                         "RUT": rut,
                         "Nombre": p['nombre_completo'],
-                        "Estado": display_estado, # Columna híbrida Icono + Conteo
-                        "Tests Asignados": ", ".join(detalle_tests) if detalle_tests else "Sin asignación",
-                        "_filtro": estado_filtro # Columna oculta para filtrar
-                    })
+                        "Estado": display_estado, 
+                        "_filtro": estado_filtro
+                    }
+                    
+                    primer_pendiente_encontrado = False
+                    for test in all_assigned_tests:
+                        if test not in tests_finales:
+                            row_data[test] = '⚪ No Aplica'
+                        elif test in tests_hechos:
+                            row_data[test] = '✅ Finalizado'
+                        else:
+                            # Lógica visual para 'En Progreso'
+                            if estado_filtro == "En Progreso" and not primer_pendiente_encontrado:
+                                row_data[test] = '🔵 En Progreso'
+                                primer_pendiente_encontrado = True
+                            else:
+                                row_data[test] = '🟡 Pendiente'
+
+                    rows.append(row_data)
                 
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Pendientes", stats["Pendiente"])
@@ -559,8 +571,13 @@ def crear_interfaz_psicologo(supabase: Client):
                 elif filtro == "Finalizados":
                     df = df[df["_filtro"] == "Finalizado"]
                 
-                # Mostrar tabla sin la columna de filtro
+                # Mostrar tabla con columnas dinámicas
                 if not df.empty:
-                    st.dataframe(df.drop(columns=["_filtro"]), use_container_width=True)
+                    # Reordenar columnas para que Fecha, RUT, Nombre, Estado estén primero
+                    cols_fixed = ['Fecha', 'RUT', 'Nombre', 'Estado']
+                    cols_tests = [c for c in df.columns if c not in cols_fixed and c != '_filtro']
+                    final_cols = cols_fixed + cols_tests
+                    
+                    st.dataframe(df[final_cols], use_container_width=True)
                 else:
                     st.info("No hay datos para mostrar con el filtro seleccionado.")
