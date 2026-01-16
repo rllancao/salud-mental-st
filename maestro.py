@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components  # Importar componentes para JS
 from supabase import create_client, Client, PostgrestAPIResponse, ClientOptions
 import ficha_salud_mental
 import interfaz_psicologo
@@ -10,6 +11,12 @@ import test_pbll
 import test_wonderlic
 import test_disc
 import test_alerta
+import test_barratt
+import test_kostick
+import test_psqi
+import test_western
+import test_d48
+import test_16pf
 import generador_pdf
 from datetime import datetime, date
 
@@ -78,7 +85,7 @@ def resume_session(supabase_client, ficha_id):
         st.session_state.ficha_id = ficha_id
         rut = ficha_response.data['rut']
         
-        mysql_response = ficha_salud_mental.fetch_patient_data(rut, supabase_client)
+        mysql_response = ficha_salud_mental.fetch_patient_data(supabase_client, rut)
         if not mysql_response or mysql_response == "not_found":
             st.warning("No se pudo reanudar la sesión. Datos del paciente no encontrados.")
             st.query_params.clear()
@@ -90,7 +97,9 @@ def resume_session(supabase_client, ficha_id):
         current_index = 0
         for test_name in st.session_state.lista_tests:
             is_done = False
-            tabla_test = {"EPWORTH": "test_epworth", "WONDERLIC": "test_wonderlic", "DISC": "test_disc", "EPQ-R": "test_epq_r", "PBLL": "test_pbll", "ALERTA": "test_alerta"}.get(test_name)
+            tabla_test = {"EPWORTH": "test_epworth", "WONDERLIC": "test_wonderlic", "DISC": "test_disc", "EPQ-R": "test_epq_r",
+                          "PBLL": "test_pbll", "ALERTA": "test_alerta", "BARRATT": "test_barratt", "KOSTICK": "test_kostick",
+                          "PSQI": "test_psqi", "WESTERN": "test_western", "D-48": "test_d48", "16 PF": "test_16pf"}.get(test_name)
             
             if tabla_test:
                 res = supabase_client.from_(tabla_test).select('id', count='exact').eq('id', ficha_id).execute()
@@ -128,7 +137,9 @@ def guardar_datos_finales(supabase_client):
         ficha_data_original = ficha_response.data
         rut_paciente = ficha_data_original['rut']
         nombre_paciente = ficha_data_original['nombre_completo']
-        fecha_actual_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # Fecha y hora para evitar duplicidad de nombres
+        fecha_hora_actual_str = datetime.now().strftime('%Y-%m-%d_%H%M')
 
         # --- CORRECCIÓN: Se elimina .single() y se comprueba si hay datos ---
         wonderlic_response = supabase_client.from_('test_wonderlic').select('*').eq('id', ficha_id).execute()
@@ -151,25 +162,44 @@ def guardar_datos_finales(supabase_client):
         
         alerta_response = supabase_client.from_('test_alerta').select('*').eq('id', ficha_id).execute()
         alerta_data = alerta_response.data[0] if alerta_response.data else None
+        
+        barratt_response = supabase_client.from_('test_barratt').select('*').eq('id', ficha_id).execute()
+        barratt_data = barratt_response.data[0] if barratt_response.data else None
 
-        pdf_bytes_main = ficha_salud_mental.generar_pdf(supabase_client,ficha_data_original, wonderlic_data=wonderlic_data, disc_data=disc_data, pbll_data=pbll_data, alerta_data=alerta_data)
-        nombre_archivo_main = f"{rut_paciente}_{fecha_actual_str}_FichaIngreso.pdf"
+        kostick_response = supabase_client.from_('test_kostick').select('*').eq('id', ficha_id).execute()
+        kostick_data = kostick_response.data[0] if kostick_response.data else None
+        
+        psqi_response = supabase_client.from_('test_psqi').select('*').eq('id', ficha_id).execute()
+        psqi_data = psqi_response.data[0] if psqi_response.data else None
+        
+        western_response = supabase_client.from_('test_western').select('*').eq('id', ficha_id).execute()
+        western_data = western_response.data[0] if western_response.data else None
+
+        d48_response = supabase_client.from_('test_d48').select('*').eq('id', ficha_id).execute()
+        d48_data = d48_response.data[0] if d48_response.data else None
+        
+        _16pf_response = supabase_client.from_('test_16pf').select('*').eq('id', ficha_id).execute()
+        _16pf_data = _16pf_response.data[0] if _16pf_response.data else None
+
+        pdf_bytes_main = ficha_salud_mental.generar_pdf(supabase_client,ficha_data_original, wonderlic_data=wonderlic_data, disc_data=disc_data,
+                                                        pbll_data=pbll_data, alerta_data=alerta_data, barratt_data=barratt_data, kostick_data=kostick_data,
+                                                        psqi_data=psqi_data, western_data=western_data, d48_data=d48_data, _16pf_data=_16pf_data)
+        
+        nombre_archivo_main = f"{rut_paciente}_{fecha_hora_actual_str}_FichaIngreso.pdf"
         file_path_main = f"fichas_ingreso_SM/{nombre_archivo_main}"
         supabase_client.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes_main, path=file_path_main, file_options={"content-type": "application/pdf"})
         supabase_client.from_('registros_fichas_sm').insert({'rut': rut_paciente, 'pdf_path': file_path_main, 'nombre_completo': nombre_paciente}).execute()
-        
-        
 
         if epworth_data:
             pdf_bytes_epworth = generador_pdf.generar_pdf_epworth(epworth_data, ficha_data_original)
-            nombre_archivo_epworth = f"{rut_paciente}_{fecha_actual_str}_Epworth.pdf"
+            nombre_archivo_epworth = f"{rut_paciente}_{fecha_hora_actual_str}_Epworth.pdf"
             file_path_epworth = f"fichas_ingreso_SM/{nombre_archivo_epworth}"
             supabase_client.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes_epworth, path=file_path_epworth, file_options={"content-type": "application/pdf"})
             supabase_client.from_('test_epworth').update({'pdf_path': file_path_epworth}).eq('id', ficha_id).execute()
 
         if epq_r_data:
             pdf_bytes_epq_r = generador_pdf.generar_pdf_epq_r(epq_r_data, ficha_data_original)
-            nombre_archivo_epq_r = f"{rut_paciente}_{fecha_actual_str}_EPQR.pdf"
+            nombre_archivo_epq_r = f"{rut_paciente}_{fecha_hora_actual_str}_EPQR.pdf"
             file_path_epq_r = f"fichas_ingreso_SM/{nombre_archivo_epq_r}"
             supabase_client.storage.from_("ficha_ingreso_SM_bucket").upload(file=pdf_bytes_epq_r, path=file_path_epq_r, file_options={"content-type": "application/pdf"})
             supabase_client.from_('test_epq_r').update({'pdf_path': file_path_epq_r}).eq('id', ficha_id).execute()
@@ -193,7 +223,32 @@ def patient_flow_router(supabase_client):
         lista_tests = st.session_state.get("lista_tests", [])
 
         if current_index < len(lista_tests):
+            # --- MOSTRAR TEST ACTUAL ---
             test_actual = lista_tests[current_index]
+            
+            # --- SCROLL TO TOP (FIXED) ---
+            # Usamos f-string para cambiar el contenido del script en cada paso.
+            # Esto fuerza a Streamlit a re-ejecutar el componente sin usar el parámetro 'key' que causaba error.
+            components.html(
+                f"""
+                <script>
+                    // Test Index: {current_index} (Fuerza actualización)
+                    var topElement = window.parent.document.getElementById('inicio_pagina');
+                    if (topElement) {{
+                        topElement.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+                    }} else {{
+                        var main = window.parent.document.querySelector('section.main');
+                        if (main) main.scrollTo(0, 0);
+                    }}
+                </script>
+                """,
+                height=0
+            )
+
+            # Mostrar mensaje amigable de progreso
+            st.progress((current_index) / len(lista_tests), text=f"Progreso: Test {current_index + 1} de {len(lista_tests)}")
+            
+            sexo_paciente = st.session_state.get("datos_paciente", {}).get("sexo", None)
             
             if "EPWORTH" == test_actual:
                 test_epworth.crear_interfaz_epworth(supabase_client)
@@ -204,37 +259,76 @@ def patient_flow_router(supabase_client):
             elif "ALERTA" == test_actual:
                 test_alerta.crear_interfaz_alerta(supabase_client)
             elif "EPQ-R" == test_actual:
-                test_epq_r.crear_interfaz_epq_r(supabase_client)
+                test_epq_r.crear_interfaz_epq_r(supabase_client, sexo_paciente)
             elif "PBLL" == test_actual:
                 test_pbll.crear_interfaz_pbll(supabase_client)
+            elif "BARRATT" == test_actual:
+                test_barratt.crear_interfaz_barratt(supabase_client)
+            elif "KOSTICK" == test_actual:
+                test_kostick.crear_interfaz_kostick(supabase_client)
+            elif "PSQI" == test_actual:
+                test_psqi.crear_interfaz_psqi(supabase_client)
+            elif "WESTERN" == test_actual:
+                test_western.crear_interfaz_western(supabase_client)
+            elif "D-48" == test_actual:
+                test_d48.crear_interfaz_d48(supabase_client)
+            elif "16 PF" == test_actual:
+                test_16pf.crear_interfaz_16pf(supabase_client, sexo_paciente)
             else:
                 st.warning(f"El test '{test_actual}' aún no está implementado.")
                 if st.button("Continuar"):
                     st.session_state.current_test_index += 1
                     st.rerun()
         else:
+            # --- TODOS LOS TESTS COMPLETADOS ---
             st.session_state.step = "final"
             st.rerun()
 
     elif current_step == "final":
-        st.success("Ha completado todas las evaluaciones agendadas.")
-        st.info("Presione 'Finalizar Proceso' para generar sus informes.")
-        if st.button("Finalizar Proceso", type="primary"):
-            with st.spinner("Generando informes..."):
-                if guardar_datos_finales(supabase_client):
-                    st.success("¡Proceso finalizado con éxito!")
-                    st.balloons()
-                    if "ficha_id" in st.query_params: st.query_params.clear()
-                    for key in ['step', 'form_data', 'lista_tests', 'current_test_index', 'datos_paciente', 'ficha_id']:
-                        if key in st.session_state: del st.session_state[key]
-                    st.info("Puede cerrar esta ventana o comenzar una nueva evaluación.")
-                    if st.button("Comenzar Nueva Evaluación"): st.rerun()
+        # --- PANTALLA DE FINALIZACIÓN AUTOMÁTICA ---
+        
+        # SCROLL TO TOP PARA EL FINAL
+        components.html(
+            """
+            <script>
+                // Final Step Scroll
+                var topElement = window.parent.document.getElementById('inicio_pagina');
+                if (topElement) {
+                    topElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            </script>
+            """,
+            height=0
+        )
+
+        st.title("Proceso Finalizado") 
+        
+        with st.spinner("Generando sus informes finales, por favor espere un momento..."):
+            if guardar_datos_finales(supabase_client):
+                st.success("¡Felicitaciones! Ha completado todas las evaluaciones. Sus datos han sido guardados correctamente.")
+                st.balloons()
+                
+                if "ficha_id" in st.query_params: st.query_params.clear()
+                for key in ['step', 'form_data', 'lista_tests', 'current_test_index', 'datos_paciente', 'ficha_id']:
+                    if key in st.session_state: del st.session_state[key]
+                
+                st.info("Puede cerrar esta ventana o notificar al profesional a cargo.")
+                
+                col_izq, col_centro, col_der = st.columns([1, 2, 1])
+                with col_centro:
+                    if st.button("Volver al Inicio", use_container_width=True, type="primary"): 
+                        st.rerun()
+            else:
+                st.error("Hubo un problema al generar los informes finales. Por favor, avise al personal a cargo.")
     
     else: # current_step == "ficha"
         ficha_salud_mental.crear_interfaz_paciente(supabase_client)
 
 # --- Lógica principal de la aplicación ---
 st.set_page_config(page_title="Gestión de Salud Mental", layout="wide", initial_sidebar_state="collapsed" )
+
+# --- ANCLAJE PARA SCROLL ---
+st.markdown("<div id='inicio_pagina'></div>", unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns([2, 3, 2])
 with col2:
@@ -267,4 +361,3 @@ else:
         interfaz_contraloria.crear_interfaz_contraloria(supabase)
     else:
         st.error("Rol de usuario no reconocido.")
-
