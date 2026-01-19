@@ -630,11 +630,16 @@ def crear_interfaz_disc(supabase: Client):
     st.info(
         """
         **Instrucciones:** En cada uno de los 28 grupos a continuación, seleccione la cualidad que **MÁS** lo describe y la cualidad que **MENOS** lo describe.
-        Debe realizar una selección en la fila "Más" y una en la fila "Menos" para cada grupo, y no pueden ser la misma cualidad.
+        Debe realizar una selección en la fila "Más" y una en la fila "Menos" para cada grupo, y no pueden ser la misma cualidad. Cada grupo de opciones debe
+        ser respondido, es decir, este test debe ser completado en su totalidad para poder avanzar.
         """
     )
 
     with st.form(key="disc_form"):
+        # --- Nuevo Checkbox de Consentimiento ---
+        st.markdown("---")
+        comprende = st.checkbox("Sí, comprendo las instrucciones.", key="comprende_disc")
+        st.markdown("---")
         respuestas = {}
         for i in range(1, 29):
             st.markdown(f"---")
@@ -651,7 +656,7 @@ def crear_interfaz_disc(supabase: Client):
                 continue # Saltar a la siguiente iteración si faltan datos
                 
             respuestas[f"grupo_{i}_mas"] = st.radio(
-                f"**Más:** me identifico con:",
+                f"Me identifico **más** con:",
                 options=cualidades,
                 key=f"mas_{i}",
                 horizontal=True,
@@ -659,7 +664,7 @@ def crear_interfaz_disc(supabase: Client):
             )
 
             respuestas[f"grupo_{i}_menos"] = st.radio(
-                f"**Menos:** me identifico con:",
+                f"Me identifico **menos** con:",
                 options=cualidades,
                 key=f"menos_{i}",
                 horizontal=True,
@@ -671,6 +676,11 @@ def crear_interfaz_disc(supabase: Client):
         if siguiente_button:
             if 'ficha_id' not in st.session_state:
                 st.error("Error crítico: No se encontró el ID de la ficha de ingreso. Por favor, vuelva a empezar.")
+                return
+            
+            # --- Validación del Checkbox ---
+            if not comprende:
+                st.warning("Debe marcar la casilla indicando que comprende las instrucciones para continuar.")
                 return
 
             resultados_raw = {}
@@ -706,12 +716,14 @@ def crear_interfaz_disc(supabase: Client):
                     # 2. Guardar resultados evaluados en session_state para el PDF
                     if 'form_data' not in st.session_state:
                         st.session_state.form_data = {}
+                    resultados_evaluados['comprende'] = comprende
                     st.session_state.form_data['test_disc'] = resultados_evaluados
 
                     # 3. Preparar datos para Supabase (formato de respuestas brutas + perfil)
                     disc_data_to_save = resultados_raw.copy() # <-- Se guardan las respuestas grupo_X: [letra, letra]
                     disc_data_to_save['id'] = st.session_state.ficha_id
                     disc_data_to_save['perfil_personalidad'] = resultados_evaluados['profile_name'] # <-- Se añade el perfil calculado
+                    disc_data_to_save['comprende'] = comprende  # <-- Guardar en la base de datos
 
                     # 4. Enviar a Supabase
                     try:

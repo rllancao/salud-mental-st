@@ -431,5 +431,5 @@ def crear_interfaz_wonderlic(supabase: Client):
 
         # Actualizar el reloj
         elif not st.session_state.wonderlic_submitted:
-            time.sleep(1)
+            time.sleep(719)
             st.rerun()

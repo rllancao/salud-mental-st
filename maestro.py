@@ -17,6 +17,7 @@ import test_psqi
 import test_western
 import test_d48
 import test_16pf
+import interfaz_info
 import generador_pdf
 from datetime import datetime, date
 
@@ -112,7 +113,12 @@ def resume_session(supabase_client, ficha_id):
                 break
         
         st.session_state.current_test_index = current_index
-        st.session_state.step = "test"
+        
+        if current_index == 0:
+            st.session_state.step = "intro"
+        else:
+            st.session_state.step = "test"
+            
         st.success("Sesión reanudada.")
         return True
 
@@ -218,7 +224,10 @@ def patient_flow_router(supabase_client):
 
     current_step = st.session_state.get("step", "ficha")
 
-    if current_step == "test":
+    if current_step == "intro":
+        interfaz_info.crear_interfaz_intro(supabase_client)
+
+    elif current_step == "test":
         current_index = st.session_state.get("current_test_index", 0)
         lista_tests = st.session_state.get("lista_tests", [])
 
