@@ -536,7 +536,7 @@ def crear_interfaz_paciente(supabase: Client):
                             st.session_state.ficha_id = ficha_id
                             # Guardar también en form_data para uso inmediato si es necesario
                             st.session_state.form_data['ficha_ingreso'] = form_data_to_save 
-                            st.session_state.step = "test"
+                            st.session_state.step = "intro"
                             
                             st.query_params["ficha_id"] = ficha_id
                             st.rerun()

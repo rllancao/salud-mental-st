@@ -241,7 +241,6 @@ def patient_flow_router(supabase_client):
             components.html(
                 f"""
                 <script>
-                    // Test Index: {current_index} (Fuerza actualización)
                     var topElement = window.parent.document.getElementById('inicio_pagina');
                     if (topElement) {{
                         topElement.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
