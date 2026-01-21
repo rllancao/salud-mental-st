@@ -6,6 +6,7 @@ import json
 from datetime import date, datetime, timedelta
 import pandas as pd
 import plotly.graph_objects as go
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BUCKET_NAME = "ficha_ingreso_SM_bucket"
 TESTS_SALUD_MENTAL = [
@@ -169,9 +170,66 @@ def fetch_todos_pacientes_rango(sede):
         st.error(f"Error al buscar el listado de pacientes: {e}")
         return []
 
-# --- Función Genérica para obtener última asignación de una tabla específica ---
+# --- NUEVA FUNCIÓN OPTIMIZADA: Carga Masiva de Asignaciones (PARALELIZADA) ---
+@st.cache_data(ttl=60)
+def fetch_mapa_asignaciones(_supabase: Client, ruts: list):
+    """
+    Descarga todas las asignaciones manuales y de aeronáutica en paralelo.
+    """
+    manual_map = {}
+    aero_map = {}
+    
+    if not ruts:
+        return manual_map, aero_map
+
+    try:
+        start_date = (date.today() - timedelta(days=15)).strftime('%Y-%m-%d 00:00:00')
+        
+        # Función helper para ejecutar consultas en hilos
+        def query_manual():
+            return _supabase.from_('asignaciones_manuales')\
+                .select('rut, tests_asignados, created_at')\
+                .in_('rut', ruts)\
+                .gte('created_at', start_date)\
+                .order('created_at', desc=True)\
+                .execute()
+
+        def query_aero():
+            return _supabase.from_('asignaciones_aeronautica')\
+                .select('rut, tests_asignados, created_at')\
+                .in_('rut', ruts)\
+                .gte('created_at', start_date)\
+                .order('created_at', desc=True)\
+                .execute()
+
+        # Ejecución paralela de las 2 consultas
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_manual = executor.submit(query_manual)
+            future_aero = executor.submit(query_aero)
+            
+            res_manual = future_manual.result()
+            res_aero = future_aero.result()
+
+        # Procesamiento de resultados
+        if res_manual.data:
+            for item in res_manual.data:
+                rut = item['rut']
+                if rut not in manual_map:
+                    manual_map[rut] = item.get('tests_asignados', [])
+            
+        if res_aero.data:
+            for item in res_aero.data:
+                rut = item['rut']
+                if rut not in aero_map:
+                    aero_map[rut] = item.get('tests_asignados', [])
+                    
+    except Exception as e:
+        st.error(f"Error al cargar asignaciones masivas: {e}")
+        
+    return manual_map, aero_map
+
+# --- Función Genérica Individual (Mantenida para compatibilidad con Tabs 2 y 3) ---
 def get_latest_assignment_generic(supabase: Client, rut: str, table_name: str):
-    # Buscamos asignaciones recientes (últimos 15 días para cubrir el rango de visualización)
     start_date = (date.today() - timedelta(days=15)).isoformat()
     try:
         response = supabase.from_(table_name).select('tests_asignados').eq('rut', rut).gte('created_at', f'{start_date}T00:00:00').order('created_at', desc=True).limit(1).execute()
@@ -181,15 +239,31 @@ def get_latest_assignment_generic(supabase: Client, rut: str, table_name: str):
         pass
     return None
 
-# --- Helper Inteligente para Combinar Asignaciones ---
-def get_combined_assignment_smart(supabase: Client, rut: str, tests_originales: list):
-    manual_tests = get_latest_assignment_generic(supabase, rut, 'asignaciones_manuales')
-    if manual_tests is not None:
-        return manual_tests
+# --- Helper Inteligente (Modificado para usar mapas opcionales) ---
+def get_combined_assignment_smart(supabase: Client, rut: str, tests_originales: list, manual_map=None, aero_map=None):
+    """
+    Si se pasan los mapas (manual_map y aero_map), busca en memoria (Rápido).
+    Si no se pasan, hace la consulta a Supabase (Lento, usado en tabs de edición individual).
+    """
+    # 1. Intentar buscar en Mapas (Optimización Tab 4)
+    if manual_map is not None:
+        if rut in manual_map:
+            return manual_map[rut]
+    else:
+        # Fallback a consulta individual
+        manual_tests = get_latest_assignment_generic(supabase, rut, 'asignaciones_manuales')
+        if manual_tests is not None:
+            return manual_tests
 
-    aero_tests = get_latest_assignment_generic(supabase, rut, 'asignaciones_aeronautica')
-    if aero_tests is not None:
-        return aero_tests
+    # 2. Intentar buscar en Mapas (Optimización Tab 4)
+    if aero_map is not None:
+        if rut in aero_map:
+            return aero_map[rut]
+    else:
+        # Fallback a consulta individual
+        aero_tests = get_latest_assignment_generic(supabase, rut, 'asignaciones_aeronautica')
+        if aero_tests is not None:
+            return aero_tests
     
     return tests_originales
 
@@ -197,9 +271,7 @@ def get_combined_assignment_smart(supabase: Client, rut: str, tests_originales: 
 @st.cache_data(ttl=60)
 def fetch_iniciados_recientes(_supabase: Client, sede):
     try:
-        # Buscamos fichas de los últimos 15 días
         start_date = (date.today() - timedelta(days=15)).strftime('%Y-%m-%d 00:00:00')
-        
         sede_busqueda = sede
         if "SANTIAGO" in sede:
             sede_busqueda = "CENTRO DE SALUD WORKMED SANTIAGO"
@@ -215,12 +287,17 @@ def fetch_iniciados_recientes(_supabase: Client, sede):
 
 @st.cache_data(ttl=60)
 def fetch_progreso_tests(_supabase: Client, ruts: list):
+    """
+    Verifica el progreso en las 12 tablas de tests en PARALELO.
+    """
     progreso = {rut: [] for rut in ruts}
     if not ruts: return progreso
 
     try:
         start_date = (date.today() - timedelta(days=15)).strftime('%Y-%m-%d 00:00:00')
+        # 1. Obtener IDs de fichas (Una sola consulta)
         fichas_response = _supabase.from_('ficha_ingreso').select('id, rut').in_('rut', ruts).gte('created_at', start_date).execute()
+        
         if not fichas_response.data:
             return progreso
         
@@ -231,13 +308,26 @@ def fetch_progreso_tests(_supabase: Client, ruts: list):
         tablas_tests = ["test_epworth", "test_wonderlic", "test_disc", "test_epq_r", "test_pbll", "test_alerta", "test_barratt", "test_kostick", "test_psqi", "test_western", "test_d48", "test_16pf"]
         nombres_tests = ["EPWORTH", "WONDERLIC", "DISC", "EPQ-R", "PBLL", "ALERTA", "BARRATT", "KOSTICK", "PSQI", "WESTERN", "D-48", "16 PF"]
 
-        for tabla, nombre_test in zip(tablas_tests, nombres_tests):
-            response = _supabase.from_(tabla).select('id').in_('id', ids).execute()
-            if response.data:
-                for item in response.data:
-                    rut = id_a_rut_map.get(item['id'])
-                    if rut:
-                        progreso[rut].append(nombre_test)
+        # Función helper para ejecutar en hilo
+        def check_tabla_test(tabla, nombre_test):
+            try:
+                res = _supabase.from_(tabla).select('id').in_('id', ids).execute()
+                return nombre_test, res.data
+            except:
+                return nombre_test, []
+
+        # 2. Ejecutar 12 consultas en paralelo
+        with ThreadPoolExecutor(max_workers=12) as executor:
+            futures = [executor.submit(check_tabla_test, t, n) for t, n in zip(tablas_tests, nombres_tests)]
+            
+            for future in as_completed(futures):
+                nombre_test, data = future.result()
+                if data:
+                    for item in data:
+                        rut = id_a_rut_map.get(item['id'])
+                        if rut:
+                            progreso[rut].append(nombre_test)
+
     except Exception as e:
         st.error(f"Error al verificar el progreso de los tests: {e}")
     
@@ -458,7 +548,7 @@ def crear_interfaz_psicologo(supabase: Client):
                             except Exception as e:
                                 st.error(f"Error de conexión: {e}")
                                 
-    # --- PESTAÑA 4: ESTADO DIARIO (Con Rango y Fecha) ---
+    # --- PESTAÑA 4: ESTADO DIARIO (OPTIMIZADA) ---
     with tab4:
         st.header("Estado Diario de Pacientes")
         st.write("Monitoreo del progreso de evaluaciones (Últimos 14 días).")
@@ -474,32 +564,46 @@ def crear_interfaz_psicologo(supabase: Client):
                 st.cache_data.clear()
                 st.rerun()
 
-            with st.spinner("Cargando datos..."):
+            with st.spinner("Cargando datos masivos..."):
+                # 1. Traer pacientes (MySQL)
                 pacientes = fetch_todos_pacientes_rango(sede_d)
+                
+                # 2. Preparar listas de RUTs para carga masiva
+                lista_ruts = [p['rut'] for p in pacientes]
+                
+                # 3. Cargar asignaciones en BATCH (OPTIMIZACIÓN CLAVE)
+                manual_map, aero_map = fetch_mapa_asignaciones(supabase, lista_ruts)
+                
+                # 4. Cargar datos de progreso (Supabase)
                 iniciados = fetch_iniciados_recientes(supabase, sede_d)
-                progreso = fetch_progreso_tests(supabase, [p['rut'] for p in pacientes])
+                progreso = fetch_progreso_tests(supabase, lista_ruts)
 
             if not pacientes:
                 st.info("No hay pacientes agendados en el rango seleccionado.")
             else:
                 rows = []
                 stats = {"Pendiente": 0, "En Progreso": 0, "Finalizado": 0}
-                
-                # Definir lista completa de tests para las columnas
-                all_assigned_tests = TESTS_SALUD_MENTAL # Usar la constante global
+                all_assigned_tests = TESTS_SALUD_MENTAL 
 
                 for p in pacientes:
                     rut = p['rut']
                     fecha_p = p['fecha']
                     fecha_str = fecha_p.strftime('%Y-%m-%d') if isinstance(fecha_p, (date, datetime)) else str(fecha_p)
                     
-                    tests_finales = get_combined_assignment_smart(supabase, rut, p['tests_originales'])
+                    # Usamos la versión optimizada con mapas en memoria
+                    tests_finales = get_combined_assignment_smart(
+                        supabase, 
+                        rut, 
+                        p['tests_originales'], 
+                        manual_map=manual_map, 
+                        aero_map=aero_map
+                    )
+                    
                     tests_hechos = set(progreso.get(rut, []))
                     
                     num_asignados = len(tests_finales)
                     num_completados = len(tests_hechos.intersection(set(tests_finales)))
                     
-                    # --- LÓGICA HÍBRIDA DE ESTADO ---
                     estado_filtro = "Pendiente"
                     icono_estado = "🟡" 
                     
@@ -530,7 +634,6 @@ def crear_interfaz_psicologo(supabase: Client):
                     elif estado_filtro == "Sin Tests":
                          display_estado = "⚪ Sin Asignación"
 
-                    # --- COLUMNAS INDIVIDUALES POR TEST ---
                     row_data = {
                         "Fecha": fecha_str, 
                         "RUT": rut,
@@ -546,7 +649,6 @@ def crear_interfaz_psicologo(supabase: Client):
                         elif test in tests_hechos:
                             row_data[test] = '✅ Finalizado'
                         else:
-                            # Lógica visual para 'En Progreso'
                             if estado_filtro == "En Progreso" and not primer_pendiente_encontrado:
                                 row_data[test] = '🔵 En Progreso'
                                 primer_pendiente_encontrado = True
@@ -560,7 +662,6 @@ def crear_interfaz_psicologo(supabase: Client):
                 c2.metric("En Progreso", stats["En Progreso"])
                 c3.metric("Finalizados", stats["Finalizado"])
                 
-                # --- FILTROS DE VISUALIZACIÓN ---
                 filtro = st.radio("Filtrar:", ["Todos", "Pendientes", "En Progreso", "Finalizados"], horizontal=True, key="filtro_estado_psi")
                 
                 df = pd.DataFrame(rows)
@@ -571,13 +672,10 @@ def crear_interfaz_psicologo(supabase: Client):
                 elif filtro == "Finalizados":
                     df = df[df["_filtro"] == "Finalizado"]
                 
-                # Mostrar tabla con columnas dinámicas
                 if not df.empty:
-                    # Reordenar columnas para que Fecha, RUT, Nombre, Estado estén primero
                     cols_fixed = ['Fecha', 'RUT', 'Nombre', 'Estado']
                     cols_tests = [c for c in df.columns if c not in cols_fixed and c != '_filtro']
                     final_cols = cols_fixed + cols_tests
-                    
                     st.dataframe(df[final_cols], use_container_width=True)
                 else:
                     st.info("No hay datos para mostrar con el filtro seleccionado.")
