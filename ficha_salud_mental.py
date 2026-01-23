@@ -167,7 +167,7 @@ def connect_to_mysql():
         st.error(f"No se pudo conectar a la base de datos de WorkmedFlow: {e}")
         return None
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)
 def fetch_patient_data(_supabase_client: Client, _rut_paciente):
     # --- CORRECCIÓN: Normalizar RUT a mayúsculas para búsqueda consistente ---
     rut_busqueda_norm = _rut_paciente.strip().upper()
